@@ -1,0 +1,302 @@
+[
+ {
+  "role": "AXButton",
+  "title": "Save As Default",
+  "value": null
+ },
+ {
+  "role": "AXButton",
+  "title": "Apply Defaults",
+  "value": null
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Library",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Go to Beginning",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Replace",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Inspector",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Go to Position",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Positions (Time/Beats)",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Autopunch",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Quick Help",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Go to Left Locator",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Locators or Punch Locators",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Set Punch In/Out Locator by Playhead",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Toolbar",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Go to Right Locator",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Sample Rate / Buffer Size",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Software Monitoring",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Smart Controls",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Go to Selection Start",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Varispeed",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Auto Input Monitoring",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Mixer",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Play from Beginning",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Tempo",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Pre Fader Metering",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Editors",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Play from Left Window Edge",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Time Signature / Division",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Low Latency Monitoring Mode",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Play from Left Locator",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Key Signature / Project End",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Set Left/Right Locator by Playhead",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "List Editors",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Play from Right Locator",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "MIDI Activity (In/Out)",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Set Left/Right Locator Numerically",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Note Pad",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Play from Selection",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Performance Meter (CPU/HD)",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Apple Loops",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Rewind/Fast Rewind",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Move Locators by Cycle Length",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Browsers",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Forward/Fast Forward",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Stop",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Tuner",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Play",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Solo",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Pause",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Record",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Count In",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Flashback Capture",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Metronome Click",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Cycle",
+  "value": "1"
+ },
+ {
+  "role": "AXButton",
+  "title": "Revert",
+  "value": null
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Free Tempo Recording",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Sync",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Skip Cycle",
+  "value": "0"
+ },
+ {
+  "role": "AXRadioButton",
+  "title": "Left / Length",
+  "value": "0"
+ },
+ {
+  "role": "AXRadioButton",
+  "title": "Left / Right",
+  "value": "1"
+ }
+]

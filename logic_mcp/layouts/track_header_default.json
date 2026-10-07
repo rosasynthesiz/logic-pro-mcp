@@ -1,0 +1,85 @@
+{
+ "track_header": [
+  {
+   "role": "AXRadioButton",
+   "desc": "Has Focus",
+   "rect": [
+    237,
+    195,
+    27,
+    65
+   ]
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Mute",
+   "rect": [
+    355,
+    228,
+    22,
+    19
+   ]
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Solo",
+   "rect": [
+    377,
+    228,
+    21,
+    19
+   ]
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Record Enable",
+   "rect": [
+    402,
+    228,
+    22,
+    19
+   ]
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Input Monitoring",
+   "rect": [
+    424,
+    228,
+    21,
+    19
+   ]
+  },
+  {
+   "role": "AXSlider",
+   "desc": "",
+   "rect": [
+    526,
+    224,
+    25,
+    25
+   ]
+  },
+  {
+   "role": "AXSlider",
+   "desc": "Volume",
+   "rect": [
+    450,
+    228,
+    69,
+    18
+   ]
+  },
+  {
+   "role": "AXTextField",
+   "desc": "Mix 01 Demo Project",
+   "rect": [
+    352,
+    204,
+    196,
+    18
+   ]
+  }
+ ],
+ "captured": "2026-09-06 after header defaults"
+}

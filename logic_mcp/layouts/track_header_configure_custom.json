@@ -1,0 +1,97 @@
+[
+ {
+  "role": "AXStaticText",
+  "title": "Controls",
+  "value": null
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Groove Track",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Color Bars",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Volume",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "On/Off",
+  "value": "0"
+ },
+ {
+  "role": "AXButton",
+  "title": "Revert",
+  "value": null
+ },
+ {
+  "role": "AXStaticText",
+  "title": "Other View Options",
+  "value": null
+ },
+ {
+  "role": "AXStaticText",
+  "title": "Additional Name Column",
+  "value": null
+ },
+ {
+  "role": "AXStaticText",
+  "title": "Buttons",
+  "value": null
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Solo",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Mute",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Record Enable",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Protect",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Freeze",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Input Monitoring",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Track Alternatives",
+  "value": "0"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Track Icons",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Track Numbers",
+  "value": "1"
+ },
+ {
+  "role": "AXCheckBox",
+  "title": "Control Surface Bars",
+  "value": "1"
+ }
+]

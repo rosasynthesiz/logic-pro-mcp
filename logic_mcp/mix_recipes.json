@@ -1,0 +1,1352 @@
+[
+ {
+  "terms": [
+   "muddy",
+   "mud",
+   "muddiness",
+   "murky low mids",
+   "congested low end"
+  ],
+  "intent": "Reduce buildup in the low-mid 'mud' band that makes a track sound thick, undefined or congested, without stripping warmth.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 2 Frequency",
+    "value": 300,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 2 Gain",
+    "value": -3,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 2 Q",
+    "value": 1,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Mud sits 200-300 Hz; cut 2-3 dB, Q 1.0-1.2. Sweep to find the exact resonant peak before committing.",
+   "strings": "Cello/viola body mud 200-350 Hz; cut 3 dB Q 1.0. Widen slightly (Q 0.8) on a full section to avoid a narrow notch sound.",
+   "drums": "Kick and low toms build mud 250-400 Hz; cut 3-4 dB Q 1.0-1.4, separately per drum if multitracked.",
+   "bass": "Bass mud is usually 200-300 Hz harmonic content, not the fundamental; cut only 2 dB and re-check against the kick to avoid thinning the low end."
+  },
+  "caution": "Cut, don't boost, to fix mud. Solo the track against the full mix before committing — mud is often a masking problem between kick/bass/low strings, not a single-track EQ problem. Over-cutting removes warmth. Reference: Bobby Owsinski, The Mixing Engineer's Handbook, frequency chart (200-400 Hz = 'mud'); iZotope 'Mixing With EQ' cheat sheet.",
+  "sources": "General reference range 200-400 Hz for low-mid mud/boxiness overlap; standard mixing-textbook frequency chart terminology."
+ },
+ {
+  "terms": [
+   "boomy",
+   "boom",
+   "one-note bass",
+   "booming low end",
+   "low-end resonance"
+  ],
+  "intent": "Tame a resonant low-frequency buildup (often room mode or proximity effect) that makes low end sound bloated or 'one-note' rather than tight.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Low Cut Frequency",
+    "value": 35,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 1 Frequency",
+    "value": 120,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 1 Gain",
+    "value": -4,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 1 Q",
+    "value": 1.2,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Male chest resonance/proximity boom 120-200 Hz; cut 2-3 dB Q 1.2, plus Low Cut ~80-100 Hz for mic rumble.",
+   "strings": "Cello/bass section boom 80-150 Hz; narrow cut 3 dB Q 1.4 at the specific resonant note if it's pitch-dependent.",
+   "drums": "Kick resonant boom 80-120 Hz; cut 3-4 dB Q 1.0-1.5 — sweep a boosted narrow peak first to locate the exact frequency.",
+   "bass": "Boom is often one note ringing out; a narrow (Q 2-3) cut at the offending fundamental works better than a broad shelf cut, which would kill low-end weight."
+  },
+  "caution": "Boom is frequently a room-mode or single resonant-note problem, not a broad-band issue — use a temporary high-Q boost to sweep and locate the peak before cutting narrow. Overuse of Low Cut removes needed weight. Reference: Owsinski frequency chart (60-250 Hz 'boom'/fullness region); Sound On Sound 'Mix Rescue' technique articles on locating resonances by sweeping.",
+  "sources": "60-250 Hz range for low-end boom/resonance, consistent with standard mix-engineering frequency charts."
+ },
+ {
+  "terms": [
+   "boxy",
+   "box-like",
+   "cardboard box sound",
+   "closed-in tone"
+  ],
+  "intent": "Remove a hollow, 'inside a cardboard box' resonance that makes a source sound closed-in rather than open.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 2 Frequency",
+    "value": 450,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 2 Gain",
+    "value": -3,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 2 Q",
+    "value": 1.3,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Small-room/comb-filter boxiness 300-500 Hz; cut 3 dB Q 1.3. Common on close-mic'd vocals in untreated rooms.",
+   "strings": "Body/plate resonance 400-600 Hz; cut 2-3 dB Q 1.0-1.3, wider on a full ensemble.",
+   "drums": "Snare/rack tom shell boxiness 300-500 Hz; cut 3 dB Q 1.3-1.5.",
+   "bass": "Boxy overtone 300-500 Hz sitting above the fundamental; cut 2 dB, keep Q moderate (1.0) so the note's body isn't hollowed out."
+  },
+  "caution": "Boxy and muddy bands overlap (300-500 Hz vs 200-400 Hz) — treat as one problem area if both are reported, not two separate cuts stacking on the same band. Reference: iZotope frequency cheat sheet ('boxy' ~300-600 Hz); Owsinski Mixing Engineer's Handbook.",
+  "sources": "300-600 Hz boxy/hollow resonance range, standard across mixing references."
+ },
+ {
+  "terms": [
+   "honky",
+   "honk",
+   "horn-like",
+   "cheap megaphone tone"
+  ],
+  "intent": "Reduce a nasal, megaphone-like 'honk' resonance in the 500 Hz-1 kHz range.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 3 Frequency",
+    "value": 700,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 3 Gain",
+    "value": -3,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 3 Q",
+    "value": 1.4,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Honk 500-800 Hz; cut 3 dB Q 1.4 — common on dynamic mics or singers with a nasal cavity resonance.",
+   "strings": "Violin/viola honk 600-900 Hz; cut 2-3 dB Q 1.2.",
+   "drums": "Snare honk/ring 500-700 Hz; cut 2 dB Q 1.5, narrower to avoid killing snare body.",
+   "bass": "Honky overtone around 500-700 Hz; cut 2 dB, keep narrow so the fundamental stays intact."
+  },
+  "caution": "Honk is usually narrow and tonal (near-resonant) — favor a higher Q (1.4-2.0) narrow cut over a broad dip. Reference: iZotope frequency cheat sheet ('honky' ~500 Hz-1 kHz).",
+  "sources": "500 Hz-1 kHz honk/nasal-adjacent resonance band from standard EQ frequency charts."
+ },
+ {
+  "terms": [
+   "nasal",
+   "nasally",
+   "stuffy nose sound",
+   "honking through the nose"
+  ],
+  "intent": "Reduce the 800 Hz-1.2 kHz resonance that makes a voice or instrument sound like it's coming through the nose.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 3 Frequency",
+    "value": 1000,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 3 Gain",
+    "value": -3.5,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 3 Q",
+    "value": 1.4,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Classic nasal resonance 900 Hz-1.2 kHz; cut 3-4 dB Q 1.4 — one of the most common vocal EQ fixes.",
+   "strings": "Reedy/nasal quality in upper strings ~1 kHz; cut 2 dB Q 1.2.",
+   "drums": "Snare nasal ring ~900 Hz-1 kHz; cut 2-3 dB Q 1.4.",
+   "bass": "Less common, but nasal harmonic ~800 Hz-1 kHz on plucked/synth bass; cut 2 dB Q 1.2."
+  },
+  "caution": "This band overlaps vocal intelligibility — cut conservatively (2-4 dB) and re-check clarity, since over-cutting 1 kHz can make a vocal sound distant. Reference: Owsinski Mixing Engineer's Handbook frequency chart ('nasal' ~1 kHz).",
+  "sources": "800 Hz-1.2 kHz nasal resonance, standard mixing-textbook range centered near 1 kHz."
+ },
+ {
+  "terms": [
+   "harsh",
+   "harshness",
+   "ear fatigue",
+   "piercing",
+   "edgy midrange"
+  ],
+  "intent": "Reduce the 2-4 kHz region responsible for listening fatigue and an aggressive, piercing edge, distinct from sibilance.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 4 Frequency",
+    "value": 3000,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 4 Gain",
+    "value": -3,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 4 Q",
+    "value": 1.2,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Vocal harshness 2-4 kHz; cut 3 dB Q 1.2. If sibilance ('s'/'sh') is also present, handle that separately with a De-Esser rather than a static cut here.",
+   "strings": "Bowed harshness (bright violins) 3-5 kHz; cut 3 dB Q 1.0-1.3.",
+   "drums": "Cymbal/snare harshness 3-5 kHz; cut 2-3 dB Q 1.0, or use a dynamic EQ if it's only harsh on hits.",
+   "bass": "Rare, but pick/string harshness on bright bass 2-3 kHz; cut 2 dB Q 1.2."
+  },
+  "caution": "The ear is most sensitive 2-5 kHz (Fletcher-Munson), so small cuts (2-3 dB) read as large changes — avoid overcutting and dulling presence. Reference: iZotope frequency cheat sheet ('harsh' 2-4 kHz); Sound On Sound articles on ear-fatigue frequencies.",
+  "sources": "2-4 kHz upper-midrange harshness band, at the ear's peak sensitivity region."
+ },
+ {
+  "terms": [
+   "brittle",
+   "glassy",
+   "fragile top end",
+   "crispy",
+   "edgy highs"
+  ],
+  "intent": "Smooth an overly hard, glassy quality in the 6-10 kHz treble that reads as fragile or crispy rather than smooth.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 4 Frequency",
+    "value": 7500,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 4 Gain",
+    "value": -2.5,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 4 Q",
+    "value": 0.9,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Brittle sibilant-adjacent edge 7-9 kHz; cut 2-3 dB with a wide Q (0.8-1.0) shelf-like dip rather than a narrow notch.",
+   "strings": "Bowed brittleness on close-mic'd violins 6-9 kHz; cut 2-3 dB Q 0.9.",
+   "drums": "Brittle cymbals 8-10 kHz; use High Shelf, cut 2-3 dB, gentle slope.",
+   "bass": "Rarely an issue, but string/fret noise brightness 6-8 kHz on bright bass; cut 1-2 dB if present."
+  },
+  "caution": "Distinguish brittle (harsh top-end texture) from dull (lack of top end) — don't cut here if the real complaint is a lack of air lower down. Reference: iZotope/Owsinski frequency charts (brittleness ~6-10 kHz).",
+  "sources": "6-10 kHz upper-treble region associated with a hard, glassy character in mixing references."
+ },
+ {
+  "terms": [
+   "thin",
+   "thinness",
+   "lacking body",
+   "weak low end",
+   "no weight"
+  ],
+  "intent": "Restore missing low-frequency body/warmth to a source that sounds weak or lacking weight.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Low Shelf Frequency",
+    "value": 150,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Low Shelf Gain",
+    "value": 2.5,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Add warmth/body with a Low Shelf +2-3 dB at 150-250 Hz; if still thin, also try Peak boost ~200 Hz +2 dB, Q 1.0.",
+   "strings": "Add body 150-300 Hz +2 dB Low Shelf, especially on thin-sounding DI or overhead-only string recordings.",
+   "drums": "Add kick/tom weight 80-150 Hz +3 dB Low Shelf or narrow Peak boost at the fundamental.",
+   "bass": "Add fundamental weight 60-100 Hz +2-3 dB Low Shelf; check on small speakers to avoid overdoing sub content that disappears there."
+  },
+  "caution": "Boosting low end raises overall level and can reduce headroom — gain-stage afterward and recheck against the kick/bass relationship. If the source has no real low-frequency content to begin with (e.g. a DI'd acoustic guitar), consider harmonic exciter/saturation instead of pure EQ boost. Reference: Owsinski Mixing Engineer's Handbook (adding warmth 150-250 Hz).",
+  "sources": "150-300 Hz low-shelf boost is the standard textbook fix for thin/weak sources; 60-100 Hz for sources needing sub weight."
+ },
+ {
+  "terms": [
+   "dull",
+   "lifeless",
+   "lacking sparkle",
+   "muffled highs",
+   "no air"
+  ],
+  "intent": "Restore missing top-end sparkle/air to a source that sounds veiled or lifeless.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "High Shelf Frequency",
+    "value": 9000,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "High Shelf Gain",
+    "value": 2.5,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Add presence +2 dB at 5 kHz (Peak, Q 1.0) plus an air shelf +2 dB at 10-12 kHz.",
+   "strings": "Add bow detail/air 8-12 kHz +2-3 dB High Shelf.",
+   "drums": "Add cymbal shimmer 10-12 kHz +2-3 dB High Shelf.",
+   "bass": "Add string/pick attack definition 2-4 kHz +1-2 dB Peak rather than a high shelf, since bass carries little content above ~5 kHz."
+  },
+  "caution": "If a high shelf boost sounds thin/harsh rather than open, the problem may be recorded with a dull mic/room and better solved with an Exciter (adds harmonics) than a straight EQ boost, which just raises noise floor and hiss. Reference: Owsinski Mixing Engineer's Handbook ('air' 10-15 kHz, 'presence' 5 kHz).",
+  "sources": "8-12 kHz air-band boost is the standard textbook fix for dull material; presence boost near 5 kHz helps dull vocals specifically."
+ },
+ {
+  "terms": [
+   "tinny",
+   "cheap speaker sound",
+   "thin and clacky",
+   "AM radio tone"
+  ],
+  "intent": "Fix an unbalanced tone with excess upper-midrange and too little low end, giving a small-speaker/'tinny' character.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 4 Frequency",
+    "value": 3000,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 4 Gain",
+    "value": -3,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Low Shelf Frequency",
+    "value": 150,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Low Shelf Gain",
+    "value": 2,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Cut clacky midrange 2.5-4 kHz by 3 dB and add warmth with +2 dB Low Shelf at 200 Hz.",
+   "strings": "Cut scratchy overtone 3-5 kHz by 2-3 dB, add body 150-250 Hz +2 dB.",
+   "drums": "Cut tinny snare/cymbal ring 3-5 kHz by 3 dB; add kick/tom low end +2-3 dB at 100 Hz.",
+   "bass": "Cut clacky string noise 2-3 kHz by 2 dB and rebuild fundamental with +2 dB Low Shelf at 80-100 Hz."
+  },
+  "caution": "Tinny is a two-part problem (excess upper-mid + missing low end) — address both, since cutting the highs alone leaves the source sounding dull rather than balanced. Reference: iZotope frequency cheat sheet correlating 2-5 kHz excess with 'tinny'/'thin' character when bass is also absent.",
+  "sources": "Combination of 2-5 kHz reduction and 100-250 Hz reinforcement, per standard tonal-balance mixing guidance."
+ },
+ {
+  "terms": [
+   "woolly",
+   "wooly",
+   "loose low end",
+   "undefined bass",
+   "flabby"
+  ],
+  "intent": "Tighten a soft, undefined low-mid buildup (often paired with loose transient response) rather than a simple resonance.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 1 Frequency",
+    "value": 200,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 1 Gain",
+    "value": -3,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 1 Q",
+    "value": 1,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Proximity-effect wooliness 150-250 Hz; cut 3 dB Q 1.0, common on close-mic'd baritone vocals.",
+   "strings": "Cello/bass section low-mid softness 150-250 Hz; cut 3 dB Q 1.0.",
+   "drums": "Woolly kick/floor tom 150-250 Hz; cut 3-4 dB Q 1.0, and follow with Compressor (Ratio 3:1, fast Attack ~10 ms, Release ~100 ms) to tighten the transient.",
+   "bass": "Loose low end 150-250 Hz; cut 2-3 dB Q 1.0, then Compressor Ratio 3:1-4:1, Attack 10-20 ms, Release 80-120 ms to add definition."
+  },
+  "caution": "Wooliness is often as much a dynamics/timing problem as an EQ problem — if cutting 150-250 Hz alone doesn't tighten the sound, add compression before reaching for more EQ. Reference: Sound On Sound articles on 'tightening loose bass' combining subtractive EQ with compression.",
+  "sources": "150-250 Hz low-mid looseness band; compressor settings per standard tightening technique for bass-register sources."
+ },
+ {
+  "terms": [
+   "cloudy",
+   "hazy",
+   "lacking clarity",
+   "blurry mix",
+   "smeared"
+  ],
+  "intent": "Clear a broad low-mid haze that blurs definition, then restore clarity higher up so individual sources are distinguishable.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 2 Frequency",
+    "value": 400,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 2 Gain",
+    "value": -2.5,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 2 Q",
+    "value": 0.7,
+    "unit": "Q"
+   },
+   {
+    "parameter": "Peak 4 Frequency",
+    "value": 3500,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 4 Gain",
+    "value": 2,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 4 Q",
+    "value": 1,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Broad midrange haze 300-500 Hz; cut 2-3 dB wide Q 0.7, add clarity +2 dB at 3 kHz Q 1.0.",
+   "strings": "Ensemble blur 300-600 Hz; cut 2 dB wide, add detail +1-2 dB at 4-5 kHz.",
+   "drums": "Overhead/room haze 300-500 Hz; cut 2-3 dB, add stick clarity +2 dB at 5 kHz.",
+   "bass": "Low-mid smear 250-400 Hz; cut 2-3 dB wide Q 0.7 — this is often the main contributor to overall mix cloudiness."
+  },
+  "caution": "Cloudiness is frequently a mix-bus masking issue between several sources sharing 250-500 Hz, not one track's fault — check whether cutting on the bass/guitars/piano collectively clears it before over-EQing a single vocal or lead. Reference: general mix-clarity guidance from Owsinski and Sound On Sound on carving overlapping low-mid content.",
+  "sources": "300-500 Hz broad cut for buildup plus 3-5 kHz clarity boost, standard technique for improving perceived mix definition."
+ },
+ {
+  "terms": [
+   "sibilant",
+   "sibilance",
+   "harsh esses",
+   "hissy s sounds",
+   "piercing s and sh"
+  ],
+  "intent": "Tame excessive 's'/'sh'/'ch' energy using dynamic (level-dependent) reduction rather than a static EQ cut, so only the sibilant moments are affected.",
+  "plugin": "DeEsser 2",
+  "settings": [
+   {
+    "parameter": "Frequency",
+    "value": 6500,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Threshold",
+    "value": -20,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Range",
+    "value": -6,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Set Frequency by ear 5-8 kHz (higher ~7-8 kHz for bright/female vocals, lower ~5-6 kHz for darker/male vocals); Range -4 to -8 dB is enough for most sources.",
+   "strings": "Bow noise/breathiness on close-mic'd violins sits 7-9 kHz; use a gentler Range (-3 to -4 dB) since strings rarely need heavy de-essing.",
+   "drums": "Not true sibilance, but harsh hi-hat/cymbal transients 6-8 kHz can be tamed similarly with a dynamic EQ at Frequency 6-8 kHz, Range -3 to -4 dB.",
+   "bass": "Sibilance is essentially never a bass issue; if fret/string noise 5-7 kHz is bothersome, address with a static Channel EQ cut instead of a De-Esser."
+  },
+  "caution": "Over-de-essing causes an audible lisp and dulls consonants — set Threshold so gain reduction only engages on actual 's'/'sh' hits (check the plugin's reduction meter), and always A/B against the untreated vocal. Reference: Apple Logic Pro documentation for DeEsser 2 parameters; standard sibilance range 5-8 kHz per iZotope and Sound On Sound de-essing guides.",
+  "sources": "5-8 kHz sibilance detection band, per Apple's DeEsser 2 documentation and standard vocal-mixing references."
+ },
+ {
+  "terms": [
+   "warmer",
+   "add warmth",
+   "warm it up",
+   "thicker low mids",
+   "less thin",
+   "cozier tone"
+  ],
+  "intent": "Add perceived warmth by lightly boosting the low-mid fundamental/harmonic region (~150-400Hz) while gently softening upper-treble edge, without adding boxiness or mud.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 2 Frequency",
+    "value": 250,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 2 Gain",
+    "value": 2,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 2 Q",
+    "value": 1,
+    "unit": "Q"
+   },
+   {
+    "parameter": "High Shelf Gain",
+    "value": -1.5,
+    "unit": "dB"
+   },
+   {
+    "parameter": "High Shelf Frequency",
+    "value": 10000,
+    "unit": "Hz"
+   }
+  ],
+  "by_source": {
+   "vocals": "Boost 200-300Hz +1.5 to 2.5dB, Q 1.0; optional Low Shelf 100Hz +1dB for chest warmth; High Shelf -1 to -2dB at 9-10kHz to soften sibilant edge.",
+   "strings": "Boost 250-400Hz +2dB, Q 0.8 (cello/viola body); High Shelf -1dB at 6-8kHz to reduce steely bow harshness on massed sections.",
+   "drums": "On toms/floor tom boost 200-300Hz +1.5dB, Q 1.0; on overheads apply High Shelf -1.5dB at 8kHz only, skip low-mid boost to avoid boxy kit.",
+   "bass": "Boost 150-250Hz +2dB, Q 1.0 for fundamental warmth; Low Shelf 80Hz +1dB optional; avoid stacking with kick's same range."
+  },
+  "caution": "Low-mid boosts (200-400Hz) accumulate fast across a mix and cause mud; use narrow-ish Q and check against the full mix, not solo.",
+  "sources": "Owsinski, The Mixing Engineer's Handbook (low-mid 'warmth' range 200-500Hz); iZotope frequency cheat sheet; Apple Logic Pro Channel EQ documentation."
+ },
+ {
+  "terms": [
+   "brighter",
+   "add brightness",
+   "more sparkle",
+   "more shine",
+   "open up the top end",
+   "less dull"
+  ],
+  "intent": "Increase high-frequency energy via a high-shelf boost (and light presence-band boost) to make a source feel more open and detailed, without inducing harshness or sibilance.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "High Shelf Frequency",
+    "value": 9000,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "High Shelf Gain",
+    "value": 2.5,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 3 Frequency",
+    "value": 5000,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 3 Gain",
+    "value": 1.5,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 3 Q",
+    "value": 1,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "High Shelf +2 to 3dB at 10kHz; if sibilant, pair with DeEsser 2 rather than pushing shelf further.",
+   "strings": "High Shelf +2dB at 9kHz; Peak boost 6kHz +1.5dB, Q 1.0 for bow detail/rosin bite.",
+   "drums": "Overheads/cymbals High Shelf +2 to 3dB at 10kHz; snare top mic Peak +2dB at 5kHz for crack.",
+   "bass": "Subtle only: High Shelf +1 to 1.5dB at 5kHz, or Peak +1.5dB at 2.5-3kHz for string/finger-noise clarity; bass rarely needs much treble."
+  },
+  "caution": "Excess high-shelf boost raises sibilance and cymbal wash and can sound harsh on cheap monitors; boost 1-2dB at a time and reassess.",
+  "sources": "Sound On Sound 'Mixing With EQ' series; iZotope 'Mixing By Ear' frequency guide; Apple Logic Pro Channel EQ documentation."
+ },
+ {
+  "terms": [
+   "more air",
+   "airy",
+   "add air",
+   "more sheen",
+   "ethereal top end",
+   "breathy top"
+  ],
+  "intent": "Add a high-shelf lift in the 'air band' (roughly 12-16kHz) above the brightness range to create openness and a sense of space without adding harshness.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "High Shelf Frequency",
+    "value": 14000,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "High Shelf Gain",
+    "value": 2.5,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "High Shelf +2 to 3dB at 14-16kHz; works well after de-essing so extra top end doesn't reintroduce sibilance.",
+   "strings": "High Shelf +2dB at 13kHz for shimmer on high violins/section pads.",
+   "drums": "Overheads/room mics: High Shelf +2dB at 15kHz for cymbal shimmer; skip on kick/toms which have no content there.",
+   "bass": "Rarely needed; if applied, +1dB at 12kHz max, mainly for fretless/harmonic-rich bass tone."
+  },
+  "caution": "Air-band boosts raise noise floor and hiss noticeably; use a gentle shelf slope and avoid on sources with little true high-frequency content (kick, low bass, tom body mics).",
+  "sources": "iZotope frequency cheat sheet (air band ~10-20kHz); Owsinski, The Mixing Engineer's Handbook; Apple Logic Pro Channel EQ documentation."
+ },
+ {
+  "terms": [
+   "more presence",
+   "forward in the mix",
+   "more upfront",
+   "cut through the mix",
+   "more clarity",
+   "more definition"
+  ],
+  "intent": "Boost the presence/upper-midrange band responsible for intelligibility and perceived proximity, typically 2-5kHz for vocals/strings, slightly lower for bass attack.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 3 Frequency",
+    "value": 4000,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 3 Gain",
+    "value": 2.5,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 3 Q",
+    "value": 1.2,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Peak boost 3-5kHz +2 to 3dB, Q 1.0-1.4 for consonant clarity and forwardness.",
+   "strings": "Peak boost 3-4kHz +1.5dB, Q 1.0 to bring out bow attack/detail without harshness.",
+   "drums": "Snare: Peak boost 3-5kHz +2dB, Q 1.0 for crack; kick beater click can use 3-4kHz +1.5dB for definition.",
+   "bass": "Peak boost 700Hz-1kHz +1.5 to 2dB, Q 1.0 for pick/finger attack and note definition (bass 'presence' sits lower than vocal presence)."
+  },
+  "caution": "Stacking presence boosts on many simultaneous tracks causes a harsh, fatiguing 3-5kHz mix buildup; boost the lead element and consider a matching cut on competing tracks instead.",
+  "sources": "Owsinski, The Mixing Engineer's Handbook (presence range 2-5kHz); Sound On Sound EQ articles; Apple Logic Pro Channel EQ documentation."
+ },
+ {
+  "terms": [
+   "more body",
+   "fuller",
+   "thicker sound",
+   "more weight",
+   "more fullness",
+   "beef it up"
+  ],
+  "intent": "Increase perceived fullness/weight by reinforcing the fundamental/low-mid range (roughly 100-250Hz), distinct from 'warmer' in that it targets lower fundamental weight rather than upper-bass harmonic character.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Peak 1 Frequency",
+    "value": 180,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 1 Gain",
+    "value": 2,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 1 Q",
+    "value": 0.8,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Low Shelf boost 150Hz +2dB, or Peak 200Hz +1.5dB, Q 0.8 for chest fullness on thin-sounding takes.",
+   "strings": "Peak boost 150-250Hz +2dB, Q 0.8, for cello/viola/double-bass body and section weight.",
+   "drums": "Kick and floor toms: boost 80-120Hz +2 to 3dB, Q 1.0 for low-end weight.",
+   "bass": "Low Shelf boost 60-100Hz +2dB for fundamental weight; watch for masking against the kick drum's same range."
+  },
+  "caution": "Boosting fundamentals across several tracks quickly muddies the mix bus; compensate with a high-pass filter on non-essential low content elsewhere.",
+  "sources": "Owsinski, The Mixing Engineer's Handbook; iZotope frequency cheat sheet; Apple Logic Pro Channel EQ documentation."
+ },
+ {
+  "terms": [
+   "cleaner low end",
+   "clean up the bottom",
+   "low-end clarity",
+   "declutter the bass",
+   "tidy up the lows"
+  ],
+  "intent": "Reduce clutter and masking in the sub/low-mid range by combining subtractive EQ (removing boxy 200-400Hz build-up) with high-pass filtering non-bass sources, so kick and bass have room.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Low Cut Frequency",
+    "value": 100,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 1 Frequency",
+    "value": 300,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Peak 1 Gain",
+    "value": -2,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Peak 1 Q",
+    "value": 1.2,
+    "unit": "Q"
+   }
+  ],
+  "by_source": {
+   "vocals": "Low Cut Frequency 100-120Hz; cut boxiness 300-400Hz -2dB, Q 1.2.",
+   "strings": "Low Cut Frequency 150-200Hz on upper strings (violin/viola), lower for cello/bass sections; cut 250-350Hz -2dB where boxy.",
+   "drums": "High-pass all non-kick elements (hats, overheads, snare bottom) at 80-100Hz; on kick, cut boxy 300-500Hz -2 to -3dB, Q 1.0.",
+   "bass": "Cut mud 200-300Hz -2dB, Q 1.0; keep bass as the main occupant below 100Hz by high-passing everything else."
+  },
+  "caution": "Subtractive cuts should come before additive boosts; over-cutting thins the mix, so sweep the offending frequency by ear rather than applying fixed values blindly.",
+  "sources": "Owsinski, The Mixing Engineer's Handbook (frequency masking); Sound On Sound 'Mix Rescue' low-end cleanup techniques; Apple Logic Pro Channel EQ documentation."
+ },
+ {
+  "terms": [
+   "tighter low end",
+   "tighten the bass",
+   "punchier bottom",
+   "tighten the kick and bass",
+   "controlled low end"
+  ],
+  "intent": "Make bass-register sources feel more controlled and defined by combining a fast-reacting compressor (moderate ratio, transient-preserving attack) with a high-pass filter to remove sub-rumble, improving punch and reducing looseness.",
+  "plugin": "Compressor",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -18,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Ratio",
+    "value": 4,
+    "unit": "ratio"
+   },
+   {
+    "parameter": "Attack",
+    "value": 15,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Release",
+    "value": 100,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Make Up",
+    "value": 2,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "bass": "Threshold -15 to -20dB, Ratio 4:1, Attack 10-30ms (let pluck/pick transient pass), Release 80-150ms or Auto; pair with Channel EQ Low Cut Frequency 30-40Hz to remove sub-junk.",
+   "drums": "Kick: Threshold -12dB, Ratio 4:1, Attack 10ms, Release 100ms for a controlled, punchy hit; avoid attack times under 5ms which can kill the beater transient.",
+   "strings": "Double bass/cello pizzicato: Ratio 3:1, Attack 15ms, Release 100ms, Threshold set for 3-5dB gain reduction; Low Cut Frequency 40Hz.",
+   "vocals": "Not a primary target for low-end tightening, but low male vocal rumble can be reduced with Channel EQ Low Cut Frequency 80-100Hz rather than compression."
+  },
+  "caution": "Very fast attack times (under ~5ms) squash the transient and remove punch rather than adding it; start conservative (10-20ms) and shorten only if the bass still feels loose.",
+  "sources": "Owsinski, The Mixing Engineer's Handbook (compression for bass control); Apple Logic Pro Compressor documentation; Sound On Sound bass mixing articles."
+ },
+ {
+  "terms": [
+   "less rumble",
+   "remove rumble",
+   "cut low rumble",
+   "no boom",
+   "reduce handling noise",
+   "remove sub mud"
+  ],
+  "intent": "Apply a steep high-pass filter well below the source's musical fundamental to remove mic handling noise, HVAC/stage rumble, and inaudible sub-bass buildup that eats headroom.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Low Cut Frequency",
+    "value": 80,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Low Cut Slope",
+    "value": 24,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Low Cut Frequency 80-100Hz, slope 12-24dB/oct, to remove pop-shield rumble and mic handling noise below the voice's fundamental.",
+   "strings": "Low Cut Frequency 60-80Hz on full sections (preserves cello/bass fundamental); higher, ~150Hz, on violin/viola-only tracks.",
+   "drums": "Overhead/room mics: Low Cut Frequency 100-150Hz; kick mic: Low Cut only below ~30-40Hz to remove sub-sonic rumble without touching the fundamental thump.",
+   "bass": "Low Cut Frequency 30-40Hz to remove sub-sonic junk while preserving the fundamental; do not set above the lowest played note."
+  },
+  "caution": "Setting the low cut above the source's actual fundamental thins or removes the note itself; sweep the frequency while soloing and listening for the point where tone changes.",
+  "sources": "Apple Logic Pro Channel EQ documentation; Owsinski, The Mixing Engineer's Handbook (subsonic filtering practice); Sound On Sound live/studio rumble-control articles."
+ },
+ {
+  "terms": [
+   "high-pass it",
+   "add a high-pass filter",
+   "roll off the lows",
+   "HPF this track",
+   "cut everything below X"
+  ],
+  "intent": "Standard gain-staging high-pass filtering applied per source to remove non-musical low-frequency content and reduce masking in the mix, set just below each source's useful fundamental.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "Low Cut Frequency",
+    "value": 100,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Low Cut Slope",
+    "value": 12,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Low Cut Frequency 80-100Hz, 12dB/oct (24dB/oct for thin voices needing extra cleanup).",
+   "strings": "Low Cut Frequency 150-200Hz for violin, 100Hz for viola, 60-80Hz for cello, 40Hz for double bass.",
+   "drums": "Kick 30-40Hz (or bypass), snare 80-100Hz, hi-hats/overheads 200-300Hz.",
+   "bass": "Low Cut Frequency 30-40Hz, sub-cleanup only, never above the lowest fundamental the bass plays."
+  },
+  "caution": "A high-pass set above the source's fundamental weakens or removes the note; always confirm by ear against the lowest note the part plays.",
+  "sources": "Owsinski, The Mixing Engineer's Handbook (standard HPF settings by instrument); Apple Logic Pro Channel EQ documentation."
+ },
+ {
+  "terms": [
+   "low-pass it",
+   "roll off the highs",
+   "cut the highs above X",
+   "tame harshness with a lowpass",
+   "dull it down"
+  ],
+  "intent": "Apply a high-cut/low-pass filter to remove unwanted high-frequency content such as hiss, harshness, or excessive cymbal bleed, or for creative darkening of a source.",
+  "plugin": "Channel EQ",
+  "settings": [
+   {
+    "parameter": "High Cut Frequency",
+    "value": 12000,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "High Cut Slope",
+    "value": 12,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "High Cut Frequency 12-15kHz, gentle 12dB/oct, to tame hiss/harsh extremes without dulling the voice; use sparingly.",
+   "strings": "High Cut Frequency 10-12kHz on massed sections to tame bow noise/harshness while retaining sheen.",
+   "drums": "Room/overhead mics: High Cut 12-15kHz to reduce cymbal wash bleed; toms: High Cut 8-10kHz to remove buzz/rattle.",
+   "bass": "High Cut Frequency 3-5kHz for a darker tone or to remove fret/string noise, common on synth-bass patches needing only low harmonics."
+  },
+  "caution": "Setting the cutoff too low removes clarity, attack, and articulation; use a gentle slope (12dB/oct) unless there is a specific surgical need for a steeper cut.",
+  "sources": "Apple Logic Pro Channel EQ documentation; Sound On Sound 'Mixing With EQ' series; Owsinski, The Mixing Engineer's Handbook."
+ },
+ {
+  "terms": [
+   "tighten",
+   "tighten up",
+   "tighten the low end",
+   "rein in the dynamics",
+   "clean up the timing/dynamics"
+  ],
+  "intent": "Reduce excess dynamic range and note-to-note level variance so a loose-sounding part sits consistently in the mix.",
+  "plugin": "Compressor",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -20,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Ratio",
+    "value": 4,
+    "unit": "ratio"
+   },
+   {
+    "parameter": "Attack",
+    "value": 10,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Release",
+    "value": 80,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Make Up",
+    "value": 3,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Threshold -18 dB, Ratio 3:1, Attack 15 ms (slower to protect consonants), Release 100-150 ms.",
+   "strings": "Threshold -16 dB, Ratio 2.5:1, Attack 20-30 ms (let bow attack through), Release 150-250 ms or Auto.",
+   "drums": "Threshold -22 dB, Ratio 4-6:1, Attack 5-8 ms, Release 60-100 ms to even hit-to-hit level.",
+   "bass": "Threshold -20 dB, Ratio 4:1, Attack 10-15 ms, Release 80-120 ms, aim for 4-6 dB gain reduction."
+  },
+  "caution": "Too-fast attack kills transient punch; too high a ratio flattens the part until it sounds lifeless. Release times that are too fast on sustained sources (strings, held vocal notes) cause audible pumping.",
+  "sources": "Owsinski, 'The Mixing Engineer's Handbook' (compression starting-point tables by instrument); Sound On Sound, 'Compression Made Easy'."
+ },
+ {
+  "terms": [
+   "punchier",
+   "add punch",
+   "more punch",
+   "snappier",
+   "hit harder",
+   "more attack"
+  ],
+  "intent": "Emphasize the transient by letting the initial peak pass uncompressed, then release quickly so the compressor resets before the next hit.",
+  "plugin": "Compressor",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -15,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Ratio",
+    "value": 4,
+    "unit": "ratio"
+   },
+   {
+    "parameter": "Attack",
+    "value": 20,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Release",
+    "value": 60,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Make Up",
+    "value": 2,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Attack 15-20 ms, Ratio 3:1, Release 80 ms to add edge on consonants without killing tone.",
+   "strings": "Attack 30-40 ms, Ratio 2:1, Release 150 ms; punch here means preserving bow-attack definition, not slamming transients.",
+   "drums": "Attack 15-25 ms (let the beater/stick transient through), Ratio 4-6:1, Release 50-80 ms for fast recovery between hits.",
+   "bass": "Attack 25-30 ms, Ratio 3:1, Release 80-100 ms, moderate 3 dB gain reduction to keep note attack intact."
+  },
+  "caution": "Slow attack lets peaks pass uncompressed, which can clip downstream gain stages — watch levels. Overdoing it on already-transient-heavy sources adds harshness rather than punch.",
+  "sources": "Sound On Sound, 'Attack and Release' (SOS compressor-timing explainer); Owsinski, 'The Mixing Engineer's Handbook'."
+ },
+ {
+  "terms": [
+   "more consistent",
+   "even out",
+   "level out",
+   "smooth the level changes",
+   "keep it steady",
+   "auto-ride the fader"
+  ],
+  "intent": "Reduce phrase-to-phrase or note-to-note loudness variance to a steady average, similar to manual fader riding.",
+  "plugin": "Compressor",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -18,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Ratio",
+    "value": 3,
+    "unit": "ratio"
+   },
+   {
+    "parameter": "Attack",
+    "value": 10,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Release",
+    "value": 100,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Make Up",
+    "value": 3,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Ratio 3:1, Attack 5-10 ms, Release Auto, target 4-7 dB gain reduction (classic vocal-leveling range).",
+   "strings": "Ratio 2:1, Attack 20 ms, Release 200 ms or Auto for sustained legato lines.",
+   "drums": "Ratio 4:1, Attack 10 ms, Release 100 ms on overheads/room to even hit level.",
+   "bass": "Ratio 3-4:1, Attack 10-20 ms, Release 100-150 ms for even note-to-note level."
+  },
+  "caution": "Overuse removes natural expressive dynamics; pumping/breathing artifacts become audible on sustained pads or bowed strings if release is too fast.",
+  "sources": "Owsinski, 'The Mixing Engineer's Handbook' (vocal-riding compression technique); iZotope, 'Mixing With Compression' guide."
+ },
+ {
+  "terms": [
+   "glue",
+   "glue the mix",
+   "cohesive",
+   "bus compression",
+   "make it sound like one thing",
+   "gel together"
+  ],
+  "intent": "Apply light bus/group compression that reacts to the combined signal, unifying separate sources into one cohesive-sounding element.",
+  "plugin": "Compressor",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -10,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Ratio",
+    "value": 2,
+    "unit": "ratio"
+   },
+   {
+    "parameter": "Attack",
+    "value": 30,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Release",
+    "value": 150,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Make Up",
+    "value": 1.5,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "mix": "Master/mix bus: Ratio 2:1, Attack 30 ms, Release Auto, keep gain reduction to 2-3 dB max.",
+   "vocals": "Vocal bus (lead + doubles/harmonies): Ratio 2:1, Attack 20 ms, Release 100 ms, 2-3 dB gain reduction.",
+   "drums": "Drum bus: Ratio 4:1, Attack 10-15 ms, Release Auto, 3-4 dB gain reduction for cohesion.",
+   "strings": "String section bus: Ratio 2:1, Attack 30-40 ms, Release 150 ms or Auto, gentle 2 dB gain reduction.",
+   "bass": "If grouped with kick on a low bus: Ratio 2:1, Attack 20 ms, Release 100 ms, 2 dB gain reduction."
+  },
+  "caution": "Apply to a bus or group, not every individual track — stacking glue compression on each track as well as the bus over-squashes the mix and kills transient detail.",
+  "sources": "Sound On Sound, 'Mix Bus Compression Explained'; Owsinski, 'The Mixing Engineer's Handbook' (glue-compression concept)."
+ },
+ {
+  "terms": [
+   "control peaks",
+   "catch the peaks",
+   "tame the peaks",
+   "stop it from clipping",
+   "rein in loud moments",
+   "smooth out spikes"
+  ],
+  "intent": "Catch and control only the occasional loud transient or spike, leaving the rest of the performance untouched.",
+  "plugin": "Compressor",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -8,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Ratio",
+    "value": 8,
+    "unit": "ratio"
+   },
+   {
+    "parameter": "Attack",
+    "value": 2,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Release",
+    "value": 50,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Make Up",
+    "value": 0.5,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Set threshold to catch only the loudest words; Ratio 6-8:1, Attack 1-3 ms, Release 60-100 ms.",
+   "strings": "Threshold catches bowed accents/sforzandi; Ratio 4:1, Attack 3-5 ms (faster attack on low strings can distort — verify by ear), Release 100 ms.",
+   "drums": "Threshold catches rim shots/crash spikes; Ratio 8-10:1, Attack under 2 ms, Release 50 ms.",
+   "bass": "Threshold catches slap/pop peaks; Ratio 6:1, Attack 2-5 ms, Release 80 ms."
+  },
+  "caution": "This should engage only occasionally (2-4 dB on peaks, not constant gain reduction). Sub-1 ms attack on low-frequency material can introduce audible distortion.",
+  "sources": "Apple Logic Pro Compressor documentation; Sound On Sound, 'Peak Limiting vs Compression'."
+ },
+ {
+  "terms": [
+   "tame",
+   "tame the harshness",
+   "tame the resonances",
+   "tone down the spikes in that range",
+   "calm down that frequency"
+  ],
+  "intent": "Use multiband dynamics to control a specific problem frequency range that jumps out inconsistently, without affecting the rest of the spectrum.",
+  "plugin": "Multipressor",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -20,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Ratio",
+    "value": 3,
+    "unit": "ratio"
+   },
+   {
+    "parameter": "Attack",
+    "value": 10,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Release",
+    "value": 100,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Gain",
+    "value": 0,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Target the 2-4 kHz (nasal/harsh) or 6-9 kHz (sibilant) band: Threshold -20 dB, Ratio 3:1, Attack 5-10 ms, Release 100 ms.",
+   "strings": "Target 2-5 kHz (bow harshness): Threshold -18 dB, Ratio 3:1, Attack 10-15 ms, Release 120 ms.",
+   "drums": "Target 3-6 kHz (cymbal/snare harshness): Threshold -18 dB, Ratio 3-4:1, Attack 5 ms, Release 80 ms.",
+   "bass": "Target 150-300 Hz (boxy note build-up): Threshold -20 dB, Ratio 3:1, Attack 15-20 ms, Release 150 ms."
+  },
+  "caution": "Solo the target band while setting threshold; over-taming a band dulls the source and produces an unnatural, 'sucked-out' tone.",
+  "sources": "iZotope, 'A Guide to Multiband Compression'; Apple Logic Pro Multipressor documentation."
+ },
+ {
+  "terms": [
+   "smooth",
+   "smooth it out",
+   "soften",
+   "silky",
+   "mellow it out",
+   "less harsh dynamics"
+  ],
+  "intent": "Apply gentle, slower-responding (opto-style) compression for musical, smooth-sounding gain reduction rather than aggressive clamping.",
+  "plugin": "Compressor",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -18,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Ratio",
+    "value": 2,
+    "unit": "ratio"
+   },
+   {
+    "parameter": "Attack",
+    "value": 15,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Release",
+    "value": 120,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Make Up",
+    "value": 2,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Circuit Type set to Vintage Opto if available; Ratio 2-3:1, Attack 10-20 ms, Release Auto, 3-5 dB gain reduction.",
+   "strings": "Opto-style behavior; Ratio 2:1, Attack 20-30 ms, Release 200 ms or Auto for smooth legato swells.",
+   "drums": "On overheads/room only; Ratio 2:1, Attack 15-20 ms, Release 100 ms to soften harsh transient edges.",
+   "bass": "Ratio 2-3:1, Attack 15 ms, Release 120 ms for a smooth note-to-note transition."
+  },
+  "caution": "The slower attack lets the initial transient through uncompressed — pair with a limiter downstream if peaks are also a problem.",
+  "sources": "Apple Logic Pro Compressor documentation (Vintage Opto circuit emulation); Owsinski, 'The Mixing Engineer's Handbook' (optical-compressor characteristics)."
+ },
+ {
+  "terms": [
+   "more sustain",
+   "longer sustain",
+   "make it ring longer",
+   "sustain the notes",
+   "bring up the tail"
+  ],
+  "intent": "Compress hard enough on the attack to bring the decaying tail of a note up in level relative to its peak, extending perceived sustain — a classic technique on plucked/picked instruments.",
+  "plugin": "Compressor",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -24,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Ratio",
+    "value": 6,
+    "unit": "ratio"
+   },
+   {
+    "parameter": "Attack",
+    "value": 4,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Release",
+    "value": 200,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Make Up",
+    "value": 5,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "bass": "Threshold -22 dB, Ratio 6-8:1, Attack 3-5 ms, Release 150-200 ms, strong makeup gain to lift the tail of plucked notes.",
+   "strings": "Mainly useful for pizzicato: Threshold -20 dB, Ratio 4:1, Attack 5 ms, Release 150 ms. Bowed sustain rarely needs this treatment.",
+   "vocals": "Rarely applied for sustain; if a held note needs lift, use Threshold -18 dB, Ratio 3:1, Attack 10 ms, Release 150 ms (gentle).",
+   "drums": "For sustained cymbals/toms: Threshold -20 dB, Ratio 4:1, Attack 3-5 ms, Release 150-200 ms to bring up the ring."
+  },
+  "caution": "High ratio plus slow release plus heavy makeup gain raises the noise floor and any bleed along with the tail — check for audible hiss or room noise being lifted.",
+  "sources": "Sound On Sound, guitar/bass sustain-compression technique articles; Owsinski, 'The Mixing Engineer's Handbook'."
+ },
+ {
+  "terms": [
+   "de-ess",
+   "remove sibilance",
+   "tame the esses",
+   "harsh S sounds",
+   "sss control",
+   "fix the hissing"
+  ],
+  "intent": "Reduce excess sibilant energy (harsh S/SH consonants), typically in the 4-9 kHz range, without dulling the overall tone.",
+  "plugin": "DeEsser 2",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -20,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Frequency",
+    "value": 6000,
+    "unit": "Hz"
+   },
+   {
+    "parameter": "Range",
+    "value": 6,
+    "unit": "dB"
+   }
+  ],
+  "by_source": {
+   "vocals": "Sweep to find the actual sibilant peak, typically 5-8 kHz; Threshold -20 dB, Range 6-10 dB, split-band mode.",
+   "strings": "Rarely needed; for harsh bow noise around 8 kHz use Threshold -15 dB, Range 3-4 dB (gentle).",
+   "drums": "For harsh hi-hat/cymbal energy around 6-9 kHz: Threshold -18 dB, Range 4-5 dB.",
+   "bass": "Not typically applicable; only for fret/string noise near 5 kHz, Range 2-3 dB if used at all."
+  },
+  "caution": "Range above ~10 dB causes an audible lisp and dulled consonants; always solo the de-esser's detection and sweep Frequency by ear before setting Range.",
+  "sources": "Apple Logic Pro DeEsser 2 documentation; Sound On Sound, 'De-Essing Techniques'."
+ },
+ {
+  "terms": [
+   "limit",
+   "brickwall",
+   "cap the peaks",
+   "stop it clipping",
+   "set a ceiling",
+   "hard limit"
+  ],
+  "intent": "Apply brickwall peak limiting to prevent overs/clipping and safely raise perceived loudness up to a fixed ceiling.",
+  "plugin": "Limiter",
+  "settings": [
+   {
+    "parameter": "Gain",
+    "value": 3,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Output Level",
+    "value": -0.3,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Release",
+    "value": 50,
+    "unit": "ms"
+   }
+  ],
+  "by_source": {
+   "vocals": "Gain +2-3 dB, Output Level -0.3 dB, Release Auto (fast enough to avoid pumping on sustained notes).",
+   "strings": "Gain +1-2 dB only (gentle, sustained material pumps easily), Output Level -0.3 dB, Release slower/Auto.",
+   "drums": "On the drum bus: Gain +2-4 dB, Output Level -0.3 dB, Release fast at 20-30 ms to catch transients.",
+   "bass": "Gain +2-3 dB, Output Level -0.3 dB, Release Auto/50-80 ms."
+  },
+  "caution": "A limiter is a safety net/loudness tool, not a dynamics-shaping tool — pushing too much input gain causes audible distortion and pumping, especially on sustained sources like strings or pads.",
+  "sources": "Apple Logic Pro Limiter documentation; Bob Katz, 'Mastering Audio' (industry-standard -0.3 dB ceiling convention, widely cited in Sound On Sound mastering articles)."
+ },
+ {
+  "terms": [
+   "gate",
+   "noise gate",
+   "remove noise",
+   "cut the bleed",
+   "clean up the silence",
+   "kill the hiss"
+  ],
+  "intent": "Silence the signal below a set threshold to remove noise floor, mic bleed, hum, or amp hiss between notes/phrases.",
+  "plugin": "Noise Gate",
+  "settings": [
+   {
+    "parameter": "Threshold",
+    "value": -40,
+    "unit": "dB"
+   },
+   {
+    "parameter": "Attack",
+    "value": 0.5,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Hold",
+    "value": 10,
+    "unit": "ms"
+   },
+   {
+    "parameter": "Release",
+    "value": 100,
+    "unit": "ms"
+   }
+  ],
+  "by_source": {
+   "vocals": "Threshold -35 to -45 dB (just above room noise/breath level), Attack 0.3-1 ms, Hold 10-20 ms, Release 100-150 ms to avoid clipping word tails.",
+   "strings": "Threshold -45 to -50 dB (conservative — long sustains make gating risky), Attack 1-2 ms, Hold 20 ms, Release 150-200 ms.",
+   "drums": "Per-drum threshold -30 to -40 dB for bleed control, Attack under 1 ms (fast, to not clip the transient), Hold 5-10 ms, Release 80-120 ms.",
+   "bass": "Threshold around -40 dB to remove amp hum/fret noise between notes, Attack 0.5-1 ms, Hold 10 ms, Release 100 ms."
+  },
+  "caution": "Threshold set too high chops off note decays and sounds like an unnatural 'gulp'; always set it against the real noise floor by ear, not a fixed default.",
+  "sources": "Apple Logic Pro Noise Gate documentation; Owsinski, 'The Mixing Engineer's Handbook' (gating for drum bleed control)."
+ }
+]

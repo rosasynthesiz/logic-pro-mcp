@@ -1,0 +1,357 @@
+{
+ "control_bar": [
+  {
+   "role": "AXPopUpButton",
+   "desc": "Display Mode",
+   "x": 1268,
+   "y": 61,
+   "w": 16,
+   "h": 48
+  },
+  {
+   "role": "AXSlider",
+   "desc": "bar",
+   "x": 540,
+   "y": 86,
+   "w": 47,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "beat",
+   "x": 595,
+   "y": 86,
+   "w": 13,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "division",
+   "x": 616,
+   "y": 86,
+   "w": 13,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "tick",
+   "x": 637,
+   "y": 86,
+   "w": 36,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "hour",
+   "x": 538,
+   "y": 63,
+   "w": 24,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "minute",
+   "x": 566,
+   "y": 63,
+   "w": 24,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "second",
+   "x": 594,
+   "y": 63,
+   "w": 24,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "frame",
+   "x": 622,
+   "y": 63,
+   "w": 24,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "sub frame",
+   "x": 650,
+   "y": 63,
+   "w": 24,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "bar",
+   "x": 689,
+   "y": 63,
+   "w": 47,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "beat",
+   "x": 744,
+   "y": 63,
+   "w": 13,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "division",
+   "x": 765,
+   "y": 63,
+   "w": 13,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "tick",
+   "x": 786,
+   "y": 63,
+   "w": 36,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "bar",
+   "x": 689,
+   "y": 86,
+   "w": 47,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "beat",
+   "x": 744,
+   "y": 86,
+   "w": 13,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "division",
+   "x": 765,
+   "y": 86,
+   "w": 13,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "tick",
+   "x": 786,
+   "y": 86,
+   "w": 36,
+   "h": 18
+  },
+  {
+   "role": "AXSlider",
+   "desc": "Tempo",
+   "x": 830,
+   "y": 63,
+   "w": 102,
+   "h": 25
+  },
+  {
+   "role": "AXPopUpButton",
+   "desc": "Time Signature",
+   "x": 932,
+   "y": 62,
+   "w": 71,
+   "h": 22
+  },
+  {
+   "role": "AXPopUpButton",
+   "desc": "Key Signature",
+   "x": 1004,
+   "y": 62,
+   "w": 61,
+   "h": 22
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Cycle",
+   "x": 483,
+   "y": 70,
+   "w": 38,
+   "h": 30
+  },
+  {
+   "role": "AXButton",
+   "desc": "Flashback Capture",
+   "x": 450,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Free Tempo Recording",
+   "x": 417,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Record",
+   "x": 380,
+   "y": 70,
+   "w": 37,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Play",
+   "x": 343,
+   "y": 70,
+   "w": 37,
+   "h": 30
+  },
+  {
+   "role": "AXButton",
+   "desc": "Go to Beginning",
+   "x": 306,
+   "y": 70,
+   "w": 37,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Replace",
+   "x": 1296,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Autopunch",
+   "x": 1329,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXButton",
+   "desc": "Set Punch In Locator",
+   "x": 1362,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Tuner",
+   "x": 1395,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Solo",
+   "x": 1428,
+   "y": 70,
+   "w": 34,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Count In",
+   "x": 1486,
+   "y": 70,
+   "w": 34,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Library",
+   "x": 12,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Inspector",
+   "x": 45,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Quick Help",
+   "x": 78,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Toolbar",
+   "x": 111,
+   "y": 70,
+   "w": 34,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Smart Controls",
+   "x": 169,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Mixer",
+   "x": 202,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Editors",
+   "x": 235,
+   "y": 70,
+   "w": 34,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "List Editors",
+   "x": 1583,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Note Pads",
+   "x": 1616,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Loop Browser",
+   "x": 1649,
+   "y": 70,
+   "w": 33,
+   "h": 30
+  },
+  {
+   "role": "AXCheckBox",
+   "desc": "Browsers",
+   "x": 1682,
+   "y": 70,
+   "w": 34,
+   "h": 30
+  }
+ ],
+ "captured": "2026-09-06 Logic defaults (Apply Defaults)"
+}

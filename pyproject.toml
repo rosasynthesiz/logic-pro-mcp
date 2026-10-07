@@ -1,0 +1,70 @@
+[project]
+name = "logic-mcp"
+version = "0.1.0"
+description = "Own-build MCP server for driving Logic Pro (desktop + Creator Studio) on macOS"
+readme = "README.md"
+authors = [
+    { name = "Rosa Synthesiz" }
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+keywords = ["mcp", "logic-pro", "daw", "audio", "macos", "mackie-control", "osc", "accessibility"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: MacOS X",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Sound/Audio :: Editors",
+]
+dependencies = [
+    "mcp[cli]>=2.1.1",
+    "mido>=1.3.3",
+    "numpy>=2.5.2",
+    "pyobjc-framework-applicationservices>=12.2.2",
+    "pyobjc-framework-cocoa>=12.2.2",
+    "pyobjc-framework-coremidi>=12.2.2",
+    "pyobjc-framework-quartz>=12.2.2",
+    "python-rtmidi>=1.5.8",
+    "scipy>=1.18.1",
+    "soundfile>=0.14.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/rosasynthesiz/logic-mcp"
+Repository = "https://github.com/rosasynthesiz/logic-mcp"
+
+[project.optional-dependencies]
+# voiced's ASR stack. Kept out of the hard dependency list on purpose: the core MCP server has no
+# business pulling in a speech model just to move faders. Install with `uv sync --extra voice`.
+voice = [
+    "parakeet-mlx",
+    "sounddevice",
+]
+
+[project.scripts]
+logic-mcp = "logic_mcp.server:main"
+logic-mcp-doctor = "logic_mcp.doctor:main"
+logicpadd = "logic_mcp.gesture.padd:main"
+gestured = "logic_mcp.gesture.gestured:main"
+voiced = "logic_mcp.gesture.voiced:main"
+gesture-hud = "logic_mcp.gesture.hud:main"
+gesture-fakehand = "logic_mcp.gesture.sources.fake:main"
+gesture-capture = "logic_mcp.gesture.capture:main"
+
+[dependency-groups]
+dev = ["pytest>=8.4.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = ["live: needs Logic Pro running (excluded from the default run)"]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
