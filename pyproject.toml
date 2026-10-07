@@ -1,7 +1,7 @@
 [project]
-name = "logic-mcp"
+name = "logic-pro-mcp"
 version = "0.1.0"
-description = "Own-build MCP server for driving Logic Pro (desktop + Creator Studio) on macOS"
+description = "Logic Pro MCP: an MCP server that gives AI agents real control of Logic Pro (desktop + Creator Studio) on macOS, with readback"
 readme = "README.md"
 authors = [
     { name = "Rosa Synthesiz" }
@@ -33,8 +33,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/rosasynthesiz/logic-mcp"
-Repository = "https://github.com/rosasynthesiz/logic-mcp"
+Homepage = "https://github.com/rosasynthesiz/logic-pro-mcp"
+Repository = "https://github.com/rosasynthesiz/logic-pro-mcp"
 
 [project.optional-dependencies]
 # voiced's ASR stack. Kept out of the hard dependency list on purpose: the core MCP server has no
@@ -45,7 +45,9 @@ voice = [
 ]
 
 [project.scripts]
-logic-mcp = "logic_mcp.server:main"
+logic-pro-mcp = "logic_mcp.server:main"
+logic-pro-mcp-doctor = "logic_mcp.doctor:main"
+logic-mcp = "logic_mcp.server:main"               # aliases: existing `claude mcp add` entries keep working
 logic-mcp-doctor = "logic_mcp.doctor:main"
 logicpadd = "logic_mcp.gesture.padd:main"
 gestured = "logic_mcp.gesture.gestured:main"
@@ -68,3 +70,4 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = ""
+module-name = "logic_mcp"            # the distribution is logic-pro-mcp; the import stays logic_mcp

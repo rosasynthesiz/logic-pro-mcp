@@ -1,7 +1,11 @@
-# logic-mcp
+# Logic Pro MCP
 
-Own-build MCP server that lets AI agents (Claude Code, Claude Desktop, Hermes, Cursor…) drive **Logic Pro** on macOS.
-Works with both the desktop purchase and the **Creator Studio** subscription build (`com.apple.mobilelogic`).
+An MCP server that lets AI agents (Claude Code, Claude Desktop, Hermes, Cursor, any MCP client) drive **Logic Pro**
+on macOS — transport, tracks, mixer, plug-ins, bounce, delivery — with every result read back from Logic, plus
+hands-and-voice control of the faders. Works with both the desktop purchase and the **Creator Studio** subscription
+build (`com.apple.mobilelogic`). Package name `logic-pro-mcp`; the Python module is `logic_mcp`.
+
+*Not affiliated with or endorsed by Apple. Logic Pro is a trademark of Apple Inc.*
 
 Apple ships no API, so this talks to Logic the way hardware does:
 
@@ -19,18 +23,19 @@ handshake, and Logic installs the surface itself. Endpoints carry fixed CoreMIDI
 
 ## Install
 ```bash
-cd "/path/to/logic-mcp"
+cd "/path/to/logic-pro-mcp"
 uv sync
-uv run logic-mcp-doctor      # which channels are ready + what to click
+uv run logic-pro-mcp-doctor      # which channels are ready + what to click
 ```
 Permissions (System Settings → Privacy & Security): **Accessibility** and **Automation → System Events** for the
 process that runs the server (Claude, Terminal, Hermes…).
 
 ### Register
 ```bash
-claude mcp add --scope user logic-mcp -- uv run --directory "/path/to/logic-mcp" logic-mcp
-hermes mcp add logic-mcp --command uv --args run --directory "/path/to/logic-mcp" logic-mcp
+claude mcp add --scope user logic-pro-mcp -- uv run --directory "/path/to/logic-pro-mcp" logic-pro-mcp
+hermes mcp add logic-pro-mcp --command uv --args run --directory "/path/to/logic-pro-mcp" logic-pro-mcp
 ```
+(`logic-mcp` and `logic-mcp-doctor` still work as aliases of the two commands.)
 
 ## Tools
 - `logic_system` — health/doctor, permissions, midi_ports, key_map, `ax_dump` / `ax_find` (explore Logic's UI tree)
