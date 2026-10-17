@@ -66,6 +66,15 @@ def run(probe_mcu: bool = True) -> dict:
         checks.append({"name": "mcu_surface", "status": "ok" if got else "warn", "summary": f"Mackie Control handshake done, {b.mcu.rx_count} msgs, LCD: {b.mcu.lcd.split(chr(10))[0].strip()[:40]!r}" if got else f"No MCU handshake. In Logic: Settings > Control Surfaces > Setup > New > Install > Mackie Control, set In/Out to '{MCU_PORT}'"})
         if not got:
             fix.append(f"Add Mackie Control surface in Logic pointing at '{MCU_PORT}'")
+    else:
+        # Passive: report the surface that exists in this process. Publishing the ports would make Logic install
+        # a control surface, which a health READ must never do.
+        b = bus()
+        if b.mcu.handshake:
+            checks.append({"name": "mcu_surface", "status": "ok", "summary": f"Mackie Control handshake done, {b.mcu.rx_count} msgs (not re-probed)"})
+        else:
+            checks.append({"name": "mcu_surface", "status": "unknown",
+                           "summary": "not probed; probe_mcu=true publishes the virtual ports so Logic installs the surface"})
 
     ready = [c["name"] for c in checks if c["status"] == "ok"]
     blocked = [c["name"] for c in checks if c["status"] in ("blocked", "failed")]

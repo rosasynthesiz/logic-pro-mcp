@@ -11,7 +11,8 @@ from . import (audio as audiolib, doctor, export, leveling, markers, plugins as 
                upload as uploader)
 from .channels import applescript, ax, ax_logic, dialogs, keys, osc, palette, screen
 from .channels.midi import MCU_BUTTONS, MMC, bus
-from .result import fail, ok, unsure
+from .policy import finite, serialized
+from .result import fail, ok, sent, unsure
 
 INSTRUCTIONS = """Drive Logic Pro on this Mac. Rules:
 - Call logic_system(action='health') first. Only channels listed in `ready` are trustworthy.
@@ -32,9 +33,17 @@ def _pid() -> int | None:
     return a.pid if a and a.running else None
 
 
-def _mcu_live(max_age: float = 30.0) -> bool:
+def _mcu_live(max_age: float = 30.0, open_ports: bool = True) -> bool:
+    """Whether the MCU surface is handshaken and has spoken within `max_age` seconds.
+
+    `open_ports=True` (the write path) publishes the virtual ports and waits for Logic's handshake when
+    none exists yet -- a visible change: Logic installs a control surface. Reads pass False and report
+    the surface that already exists; they never create one.
+    """
     b = bus()
     if not b.mcu.handshake:
+        if not open_ports:
+            return False
         b.wait_ready(timeout=3.0)
     return b.mcu.handshake and (time.time() - b.mcu.last_rx) < max_age
 
@@ -59,17 +68,24 @@ def _why_no_win() -> tuple[str, str]:
     return "no project window open in Logic", "open or create a project"
 
 
-def transport_state() -> dict:
+def transport_state(passive: bool = False) -> dict:
+    """Playing / recording / tempo / position from whatever can prove them.
+
+    An MCU LED that was actually received wins over the Accessibility checkbox (it is Logic's own echo);
+    an LED that never arrived is unknown and the AX value stands in. Neither source makes anything up: a
+    field nobody has reported is None and callers must treat None as "don't know". `passive=True` never
+    opens MIDI ports or waits for a handshake -- for resources and health reads.
+    """
     out: dict = {"sources": []}
     b = bus()
-    if _mcu_live():
+    if _mcu_live(open_ports=not passive):
         out["mcu"] = b.mcu.to_dict(); out["sources"].append("mcu")
     w = _win()
     if w is not None:
         out["ax"] = ax_logic.transport_snapshot(w); out["sources"].append("ax")
     mcu, axs = out.get("mcu", {}), out.get("ax", {})
-    out["playing"] = mcu.get("playing") if "mcu" in out else axs.get("play")
-    out["recording"] = mcu.get("recording") if "mcu" in out else axs.get("record")
+    out["playing"] = mcu.get("playing") if mcu.get("playing") is not None else axs.get("play")
+    out["recording"] = mcu.get("recording") if mcu.get("recording") is not None else axs.get("record")
     out["tempo"] = axs.get("tempo"); out["position"] = axs.get("position"); out["cycle"] = axs.get("cycle")
     if not out["sources"]:
         out["reason"] = "no MCU handshake and Accessibility not trusted"
@@ -82,6 +98,7 @@ def _playing() -> bool | None:
 
 # --------------------------------------------------------------------------- tools
 @mcp.tool()
+@serialized(read_actions={"permissions", "midi_ports", "ax_dump", "ax_find", "key_map", "app", "menu", "windows"})
 def logic_system(
     action: Literal["health", "permissions", "midi_ports", "ax_dump", "ax_find", "key_map", "app", "menu", "press_menu", "windows"],
     depth: int = 5,
@@ -90,11 +107,13 @@ def logic_system(
     role: str | None = None,
     window: int = 0,
     path: list[str] | None = None,
+    probe_mcu: bool = True,
 ) -> dict:
     """Health, permissions, MIDI ports, menu bar (menu/press_menu with path like ['Track','New Audio Track']),
-    and Accessibility exploration (ax_dump / ax_find) of Logic's UI."""
+    and Accessibility exploration (ax_dump / ax_find) of Logic's UI. health probes the MCU surface (publishes the
+    virtual ports so Logic installs it) unless probe_mcu=false, which only reports what already exists."""
     if action == "health":
-        return doctor.run()
+        return doctor.run(probe_mcu=probe_mcu)
     if action in ("menu", "press_menu", "windows"):
         if not ax.trusted() or not (pid := _pid()):
             return fail("ax", "needs Accessibility + running Logic")
@@ -105,7 +124,8 @@ def logic_system(
             return {"path": path or [], "items": ax_logic.menu_items(root, *(path or []))}
         if not path:
             return fail("menu", "need path")
-        return ok("menu", f"pressed {' > '.join(path)}", {"windows": ax_logic.window_titles(root)}) if ax_logic.press_menu_item(root, *path) else fail("menu", f"item not found: {path}")
+        # A menu item pressed is a request delivered, not its effect observed: this cannot know what the item was meant to do.
+        return sent("menu", f"pressed {' > '.join(path)}", {"windows": ax_logic.window_titles(root)}) if ax_logic.press_menu_item(root, *path) else fail("menu", f"item not found: {path}")
     if action == "permissions":
         return {"accessibility": ax.trusted(), "automation_system_events": applescript.frontmost() is not None}
     if action == "midi_ports":
@@ -154,6 +174,7 @@ def _key(command: str) -> bool:
 
 
 @mcp.tool()
+@serialized(read_actions={"state"})
 def logic_transport(
     action: Literal["play", "stop", "record", "go_to_beginning", "rewind", "fast_forward", "toggle_cycle", "toggle_count_in",
                     "toggle_metronome", "set_tempo", "goto", "state"],
@@ -227,21 +248,30 @@ def logic_transport(
         return unsure("keys", "key sent") if _key(key) else fail("transport", "no channel")
 
     if action == "toggle_metronome":
-        if _mcu_live() and b.mcu_button("click"):
-            time.sleep(0.3); return unsure("mcu", "click button sent", {"click_led": b.mcu.leds.get("click")})
-        return unsure("keys", "K sent") if _key("metronome") else fail("transport", "no channel")
+        if _mcu_live():
+            before = b.mcu.led("click"); t0 = time.time()
+            if b.mcu_button("click"):
+                time.sleep(0.3)
+                after = b.mcu.led("click")
+                # Confirmed only by the click LED arriving AFTER the press and differing from before; a cached LED
+                # value, however recent, is not evidence about this press.
+                if b.mcu.observed_after("led:click", t0) and after is not None and after != before:
+                    return ok("mcu", f"metronome {before} -> {after}", {"click_led": after})
+                return sent("mcu", "click button", {"click_led": after, "before": before,
+                                                    "fresh": b.mcu.observed_after("led:click", t0)})
+        return sent("keys", "K") if _key("metronome") else fail("transport", "no channel")
 
     if action == "set_tempo":
-        if tempo is None or not 5 <= tempo <= 990:
-            return fail("ax", "tempo must be 5..990")
+        if not finite(tempo, 5, 990):
+            return fail("ax", "tempo must be a finite number 5..990")
         if w is None or (el := ax_logic.tempo_slider(w)) is None:
             return fail("ax", "tempo slider not found (Accessibility?)")
         r = ax_logic.set_slider(el, tempo)
         return ok("ax", f"tempo {r['before']} -> {r['after']}", r) if r["ok"] else unsure("ax", f"tempo readback {r['after']}", r)
 
     if action == "goto":
-        if bar is None or w is None:
-            return fail("ax", "need bar (and Accessibility)")
+        if not finite(bar, 1, 100000) or w is None:
+            return fail("ax", "need bar >= 1 (and Accessibility)")
         root = ax.app(_pid())
         with _front():
             if not ax_logic.press_menu_item(root, "Navigate", "Go To", "~Position"):
@@ -262,6 +292,7 @@ def logic_transport(
 
 
 @mcp.tool()
+@serialized(read_actions={"list", "palette"})
 def logic_tracks(
     action: Literal["list", "select", "mute", "solo", "arm", "monitor", "set_volume", "set_pan", "set_color", "get_color",
                     "create_instrument", "create_audio", "create_drummer", "create_external_midi", "delete", "rename", "palette"],
@@ -310,194 +341,218 @@ def logic_tracks(
             return ok("menu", f"{action}: {len(before)} -> {len(tracks)} tracks", new[0] if new else None)
         return unsure("menu", "track count unchanged; a dialog may be open", {"windows": ax_logic.window_titles(root)})
 
-    if index is None and name is None:
-        return fail("ax", "need index or name (fail-closed for track ops)")
-    item = ax_logic.find_track(w, index, name, fuzzy=action not in ("delete", "rename", "set_color"))
-    if item is None:
-        return fail("ax", f"track not found: index={index} name={name!r}", "call logic_tracks(action='list')")
+    # Every action from here on writes to ONE track. The target is resolved exactly: no substring matching,
+    # no "first of two tracks with that name", and index + name must agree. The project the window shows
+    # is recorded now and checked again before anything is reported as confirmed.
+    try:
+        item = ax_logic.resolve_track(w, index, name, fuzzy=False)
+    except ax_logic.TargetError as e:
+        return fail("ax", f"refusing {action}: {e}", "call logic_tracks(action='list') and copy index + name")
     info = ax_logic.track_info(item)
+    project = ax_logic.project_identity(w)
 
-    b = bus()
-    all_names = [t["name"] for t in tracks_now] if (tracks_now := ax_logic.list_tracks(w)) else []
-    if action == "select":
-        if info.get("selected"):
-            return ok("readback", f"{info['name']} already selected", info)
-        if _mcu_live() and b.mcu_select_track(info["index"], all_names):
-            time.sleep(0.3)
-            after = ax_logic.track_info(item)
-            if after.get("selected"):
-                return ok("mcu", f"selected {after['name']}", after)
-        ax_logic.select_track(item); time.sleep(0.25); after = ax_logic.track_info(item)
-        return ok("ax", f"selected {after['name']}", after) if after.get("selected") else unsure("ax", "focus not confirmed", after)
+    def _verified(res: dict) -> dict:
+        """Downgrade a confirmed result when the window no longer shows the project the target was resolved in."""
+        now = ax_logic.project_identity(w)
+        if res.get("state") == "confirmed" and now != project:
+            return unsure("ax", f"{action} read back, but the front project changed during the call",
+                          res.get("readback"), project_changed={"before": project, "now": now})
+        return res
 
-    if action in ("mute", "solo", "arm", "monitor"):
-        if info.get(action) == on:
-            return ok("readback", f"{info['name']} {action} already {on}", info)
+    def _act() -> dict:
+        b = bus()
+        all_names = [t["name"] for t in tracks_now] if (tracks_now := ax_logic.list_tracks(w)) else []
+        if action == "select":
+            if info.get("selected"):
+                return ok("readback", f"{info['name']} already selected", info)
+            if _mcu_live() and b.mcu_select_track(info["index"], all_names):
+                time.sleep(0.3)
+                after = ax_logic.track_info(item)
+                if after.get("selected"):
+                    return ok("mcu", f"selected {after['name']}", after)
+            ax_logic.select_track(item); time.sleep(0.25); after = ax_logic.track_info(item)
+            return ok("ax", f"selected {after['name']}", after) if after.get("selected") else unsure("ax", "focus not confirmed", after)
 
-        def _settled(target, tries: int = 6, step: float = 0.25):
-            """Re-resolve the track each time: `item` is an AX element captured before the write, and a
-            single read through it can report the pre-write value (or a stale one) and turn a failed
-            toggle into a false 'confirmed' -- measured on 2026-09-08, mute reported True while Logic
-            had it off."""
-            cur = None
-            for _ in range(tries):
-                time.sleep(step)
-                fresh = ax_logic.find_track(w, info["index"])
-                if fresh is None:
-                    continue
-                cur = ax_logic.track_info(fresh).get(action)
-                if cur == target:
-                    return True, cur
-            return False, cur
+        if action in ("mute", "solo", "arm", "monitor"):
+            if info.get(action) == on:
+                return ok("readback", f"{info['name']} {action} already {on}", info)
 
-        strip = b.strip_for(info["index"], all_names) if (action != "monitor" and _mcu_live()) else None
-        if strip is not None:
-            b.mcu_strip({"mute": "mute", "solo": "solo", "arm": "rec"}[action], strip)
+            def _settled(target, tries: int = 6, step: float = 0.25):
+                """Re-resolve the track each time: `item` is an AX element captured before the write, and a
+                single read through it can report the pre-write value (or a stale one) and turn a failed
+                toggle into a false 'confirmed' -- measured on 2026-09-08, mute reported True while Logic
+                had it off."""
+                cur = None
+                for _ in range(tries):
+                    time.sleep(step)
+                    fresh = ax_logic.find_track(w, info["index"], info["name"])   # index AND name: the row must still be this track
+                    if fresh is None:
+                        continue
+                    cur = ax_logic.track_info(fresh).get(action)
+                    if cur == target:
+                        return True, cur
+                return False, cur
+
+            strip = b.strip_for(info["index"], all_names) if (action != "monitor" and _mcu_live()) else None
+            if strip is not None and b.mcu_strip({"mute": "mute", "solo": "solo", "arm": "rec"}[action], strip):
+                good, cur = _settled(on)
+                if good:
+                    return ok("mcu", f"{info['name']} {action}={on}", ax_logic.track_info(ax_logic.find_track(w, info["index"])))
+                # The strip button is a TOGGLE and it has been sent. Pressing the header checkbox now would be a
+                # second, blind write: if Logic applies the MCU press late, the two cancel out. Report what Logic
+                # reads and let the caller decide after a fresh read.
+                return unsure("mcu", f"{action} strip button sent, Logic still reads {action}={cur}",
+                              {"strip": strip, "verified": cur}, accepted=True,
+                              fix="read logic_tracks(action='list') and retry only if the state is still wrong")
+            el = ax_logic.track_toggle_el(item, action)
+            if el is None:
+                return fail("ax", f"{action} control not found on track")
+            r = ax_logic.set_checkbox(el, on)
             good, cur = _settled(on)
             if good:
-                return ok("mcu", f"{info['name']} {action}={on}", ax_logic.track_info(ax_logic.find_track(w, info["index"])))
-        el = ax_logic.track_toggle_el(item, action)
-        if el is None:
-            return fail("ax", f"{action} control not found on track")
-        r = ax_logic.set_checkbox(el, on)
-        good, cur = _settled(on)
-        if good:
-            return ok("ax", f"{info['name']} {action}={on}", r | {"verified": cur})
-        return unsure("ax", f"{action} not applied: Logic still reads {action}={cur}", r | {"verified": cur},
-                      fix="logic_osc(action='mute'|'solo', strip=N) drives this reliably in both directions "
-                          "when the track is in the current 8-strip bank; the header control can also be "
-                          "hidden by the Configure Track Header settings")
+                return ok("ax", f"{info['name']} {action}={on}", r | {"verified": cur})
+            return unsure("ax", f"{action} not applied: Logic still reads {action}={cur}", r | {"verified": cur},
+                          fix="logic_osc(action='mute'|'solo', strip=N) drives this reliably in both directions "
+                              "when the track is in the current 8-strip bank; the header control can also be "
+                              "hidden by the Configure Track Header settings")
 
-    if action == "set_volume":
-        vol_el = ax.find(item, role_="AXSlider", desc_="Volume", max_depth=1)
-        strip = b.strip_for(info["index"], all_names) if (db is not None and _mcu_live()) else None
-        if strip is not None and vol_el is not None:
-            lo, hi = 0, 16383; guess = 12443 if db >= -6 else 6000
-            best = None
-            for _ in range(9):  # binary search on Logic's own dB readback
-                b.mcu_fader(strip, guess); time.sleep(0.25)
-                got = ax_logic.parse_db(ax.attr(vol_el, "AXValueDescription"))
-                best = (guess, got)
-                if got is None or abs(got - db) <= 0.25:
-                    break
-                lo, hi = (guess, hi) if got < db else (lo, guess)
-                guess = (lo + hi) // 2
-            return ok("mcu", f"{info['name']} volume -> {best[1]} dB (fader {best[0]})", ax_logic.track_info(item)) if best and best[1] is not None and abs(best[1] - db) <= 0.25 \
-                else unsure("mcu", f"closest {best[1] if best else None} dB", ax_logic.track_info(item))
-        if db is not None and value is None:      # MCU could not reach it — nudge the AX slider to the dB
+        if action == "set_volume":
+            if db is not None and not (db == float("-inf") or finite(db, -96.0, 6.0)):
+                return fail("ax", "db must be a finite number -96..+6 (or -inf)")
+            if value is not None and not finite(value, 0, 233):
+                return fail("ax", "value must be a finite number 0..233 (173 = 0 dB)")
+            vol_el = ax.find(item, role_="AXSlider", desc_="Volume", max_depth=1)
+            strip = b.strip_for(info["index"], all_names) if (db is not None and _mcu_live()) else None
+            if strip is not None and vol_el is not None:
+                lo, hi = 0, 16383; guess = 12443 if db >= -6 else 6000
+                best = None
+                for _ in range(9):  # binary search on Logic's own dB readback
+                    b.mcu_fader(strip, guess); time.sleep(0.25)
+                    got = ax_logic.parse_db(ax.attr(vol_el, "AXValueDescription"))
+                    best = (guess, got)
+                    if got is None or abs(got - db) <= 0.25:
+                        break
+                    lo, hi = (guess, hi) if got < db else (lo, guess)
+                    guess = (lo + hi) // 2
+                return ok("mcu", f"{info['name']} volume -> {best[1]} dB (fader {best[0]})", ax_logic.track_info(item)) if best and best[1] is not None and abs(best[1] - db) <= 0.25 \
+                    else unsure("mcu", f"closest {best[1] if best else None} dB", ax_logic.track_info(item))
+            if db is not None and value is None:      # MCU could not reach it — nudge the AX slider to the dB
+                if vol_el is None:
+                    return fail("ax", "volume slider not found")
+                tgt_raw = None
+                r = ax_logic.nudge_slider_to_db(vol_el, db)
+                return ok("ax", f"{info['name']} volume -> {r['display']}", r) if r["ok"] \
+                    else unsure("ax", f"landed at {r['display']}", r)
+            if value is None:
+                return fail("ax", "need db or raw value (0-233, 173 = 0 dB)")
             if vol_el is None:
                 return fail("ax", "volume slider not found")
-            tgt_raw = None
-            r = ax_logic.nudge_slider_to_db(vol_el, db)
-            return ok("ax", f"{info['name']} volume -> {r['display']}", r) if r["ok"] \
-                else unsure("ax", f"landed at {r['display']}", r)
-        if value is None:
-            return fail("ax", "need db or raw value (0-233, 173 = 0 dB)")
-        if vol_el is None:
-            return fail("ax", "volume slider not found")
-        r = ax_logic.nudge_slider(vol_el, value)
-        return ok("ax", f"{info['name']} volume {r['before']} -> {r['after']} ({ax.attr(vol_el, 'AXValueDescription')})", r) if r["ok"] else unsure("ax", f"readback {r['after']}", r)
+            r = ax_logic.nudge_slider(vol_el, value)
+            return ok("ax", f"{info['name']} volume {r['before']} -> {r['after']} ({ax.attr(vol_el, 'AXValueDescription')})", r) if r["ok"] else unsure("ax", f"readback {r['after']}", r)
 
-    if action == "set_pan":
-        if value is None:
-            return fail("ax", "need value 0-127 (64 = center)")
-        # OSC first: the header pan slider only supports Increment/Decrement and settles within ~4 of 127,
-        # so the AX path could never honestly report `confirmed`. Over OSC the readback is Logic's own
-        # value. Only strips currently on the surface can be addressed, so AX stays as the fallback.
-        strip = _osc_strip_for(index)
-        if strip is not None:
-            r = logic_osc("pan", strip=strip, value=max(0.0, min(1.0, value / 127.0)))
-            if r.get("state") == "confirmed":
-                return r | {"track": info["name"], "channel": "osc"}
-        el = ax_logic._pan_slider(item)
-        if el is None:
-            return fail("ax", "pan slider not found")
-        r = ax_logic.nudge_slider(el, value)
-        return ok("ax", f"{info['name']} pan {r['before']} -> {r['after']}", r) if r["ok"] else unsure(
-            "ax", f"readback {r['after']} (header slider settles within ~4 of 127; "
-                  "put the track on the OSC surface bank for an exact, confirmable move)", r)
+        if action == "set_pan":
+            if not finite(value, 0, 127):
+                return fail("ax", "need value 0-127 (64 = center)")
+            # OSC first: the header pan slider only supports Increment/Decrement and settles within ~4 of 127,
+            # so the AX path could never honestly report `confirmed`. Over OSC the readback is Logic's own
+            # value. Only strips currently on the surface can be addressed, so AX stays as the fallback.
+            strip = _osc_strip_for(index)
+            if strip is not None:
+                r = logic_osc("pan", strip=strip, value=max(0.0, min(1.0, value / 127.0)))
+                if r.get("state") == "confirmed":
+                    return r | {"track": info["name"], "channel": "osc"}
+            el = ax_logic._pan_slider(item)
+            if el is None:
+                return fail("ax", "pan slider not found")
+            r = ax_logic.nudge_slider(el, value)
+            return ok("ax", f"{info['name']} pan {r['before']} -> {r['after']}", r) if r["ok"] else unsure(
+                "ax", f"readback {r['after']} (header slider settles within ~4 of 127; "
+                      "put the track on the OSC surface bank for an exact, confirmable move)", r)
 
-    if action in ("set_color", "get_color"):
-        target_idx = None
-        if action == "set_color":
-            if color is None:
-                return fail("palette", "need color (1..96, '#rrggbb', 'blue', 'dark green'...)", "logic_tracks(action='palette')")
-            try:
-                target_idx = palette.parse(color)
-            except ValueError as e:
-                return fail("palette", str(e))
-        if not screen.permitted():
-            return fail("screen", "Screen Recording not granted: the palette selection ring cannot be read back",
-                        "System Settings > Privacy & Security > Screen Recording (grant to the process running logic-mcp)")
-        # palette acts on the selected track(s): make the target the only selection, then ask Logic itself how many are selected
-        logic_tracks("select", index=info["index"])
-        selected = [t["index"] for t in ax_logic.list_tracks(w) if t["selected"]]
-        if selected != [info["index"]]:
-            return fail("ax", f"refusing {action}: focused tracks are {selected}, expected [{info['index']}]")
-        cnt = ax_logic.selection_count(root)
-        if cnt != 1:
-            return fail("menu", f"refusing {action}: Logic reports {cnt} selected tracks", "click a single track in Logic first")
-        pid = _pid()
-        with _front():
-            pal = palette.open_palette(root)
-            if pal is None:
-                return fail("palette", "Color window did not open", {"windows": ax_logic.window_titles(root)})
-            closed = False
-            try:
-                kids = palette.swatches(pal)
-                if len(kids) < 97:
-                    return fail("palette", f"expected 97 palette children, got {len(kids)}")
-                before = palette.selected_index(pal, kids)
-                if action == "get_color":
-                    return ok("palette", f"{info['name']} color = {palette.name_of(before) if before else None}",
-                              {"index": before, "name": palette.name_of(before) if before else None, "hex": palette.hex_of(before) if before else None}) \
-                        if before else unsure("palette", "no selection ring found (capture failed or palette not visible)", {"index": None})
-                if before == target_idx:
-                    return ok("palette", f"{info['name']} already {palette.name_of(target_idx)}", {"index": before, "hex": palette.hex_of(before)})
-                # AXPress is inert on swatches (measured). Real click: pid-posted first, HID click if the ring did not move.
-                how = "click:pid"
-                palette.click_swatch(kids, target_idx, pid=pid); time.sleep(0.35)
-                after = palette.selected_index(pal, kids)
-                if after != target_idx:
-                    how = "click:hid"
-                    palette.click_swatch(kids, target_idx, pid=None); time.sleep(0.35)
+        if action in ("set_color", "get_color"):
+            target_idx = None
+            if action == "set_color":
+                if color is None:
+                    return fail("palette", "need color (1..96, '#rrggbb', 'blue', 'dark green'...)", "logic_tracks(action='palette')")
+                try:
+                    target_idx = palette.parse(color)
+                except ValueError as e:
+                    return fail("palette", str(e))
+            if not screen.permitted():
+                return fail("screen", "Screen Recording not granted: the palette selection ring cannot be read back",
+                            "System Settings > Privacy & Security > Screen Recording (grant to the process running logic-mcp)")
+            # palette acts on the selected track(s): make the target the only selection, then ask Logic itself how many are selected
+            logic_tracks("select", index=info["index"])
+            selected = [t["index"] for t in ax_logic.list_tracks(w) if t["selected"]]
+            if selected != [info["index"]]:
+                return fail("ax", f"refusing {action}: focused tracks are {selected}, expected [{info['index']}]")
+            cnt = ax_logic.selection_count(root)
+            if cnt != 1:
+                return fail("menu", f"refusing {action}: Logic reports {cnt} selected tracks", "click a single track in Logic first")
+            pid = _pid()
+            with _front():
+                pal = palette.open_palette(root)
+                if pal is None:
+                    return fail("palette", "Color window did not open", {"windows": ax_logic.window_titles(root)})
+                closed = False
+                try:
+                    kids = palette.swatches(pal)
+                    if len(kids) < 97:
+                        return fail("palette", f"expected 97 palette children, got {len(kids)}")
+                    before = palette.selected_index(pal, kids)
+                    if action == "get_color":
+                        return ok("palette", f"{info['name']} color = {palette.name_of(before) if before else None}",
+                                  {"index": before, "name": palette.name_of(before) if before else None, "hex": palette.hex_of(before) if before else None}) \
+                            if before else unsure("palette", "no selection ring found (capture failed or palette not visible)", {"index": None})
+                    if before == target_idx:
+                        return ok("palette", f"{info['name']} already {palette.name_of(target_idx)}", {"index": before, "hex": palette.hex_of(before)})
+                    # AXPress is inert on swatches (measured). Real click: pid-posted first, HID click if the ring did not move.
+                    how = "click:pid"
+                    palette.click_swatch(kids, target_idx, pid=pid); time.sleep(0.35)
                     after = palette.selected_index(pal, kids)
-                rb = {"before": before, "after": after, "requested": target_idx, "name": palette.name_of(target_idx), "hex": palette.hex_of(target_idx), "how": how}
-                if after == target_idx:
-                    return ok("palette", f"{info['name']} color -> {palette.name_of(target_idx)} (#{palette.hex_of(target_idx)})", rb)
-                return unsure("palette", f"clicked swatch {target_idx}, ring now at {after}", rb)
-            finally:
-                closed = palette.close_palette(root)
-                if not closed:
-                    keys.press("escape", pid)
-    if action in ("delete", "rename"):
-        # fail-closed: the target must be the ONLY selected track, and Logic's own menu must say "1 Track"
-        sel = logic_tracks("select", index=info["index"])
-        selected = [t["index"] for t in ax_logic.list_tracks(w) if t["selected"]]
-        if selected != [info["index"]]:
-            return fail("ax", f"refusing {action}: selection is {selected}, expected [{info['index']}]", "select the track first")
-        if action == "rename" and not new_name:
-            return fail("ax", "need new_name")
-        verb = "Delete" if action == "delete" else "Rename"
-        n0 = len(ax_logic.track_items(w))
-        with _front():
-            # Menu titles only re-validate when the menu opens: "Delete Track" (1 selected) vs "Delete 8 Tracks".
-            pressed, titles = ax_logic.press_fresh_menu_item(root, "Track", rf"^{verb} (Track|1 Track)$")
-            if not pressed:
-                return fail("menu", f"Logic says {[t for t in titles if t.startswith(verb)]}; refusing (selection is not exactly 1 track)")
-            time.sleep(0.5)
-            if action == "delete":
-                n1 = len(ax_logic.track_items(w))
-                return ok("menu", f"deleted {info['name']}: {n0} -> {n1}") if n1 == n0 - 1 else unsure("menu", f"count {n0} -> {n1}; confirm dialog?", {"windows": ax_logic.window_titles(root)})
-            keys.press("cmd+a", _pid()); time.sleep(0.05)
-            keys.type_keys(new_name, _pid()) or keys.type_text(new_name, _pid())
-            time.sleep(0.1); keys.press("return", _pid()); time.sleep(0.5)
-        after = ax_logic.track_info(ax_logic.find_track(w, info["index"]))
-        return ok("menu", f"renamed {info['name']!r} -> {after['name']!r}", after) if after["name"] == new_name else unsure("menu", f"name now {after['name']!r}", after)
-    return fail("tracks", f"unknown action {action}")
+                    if after != target_idx:
+                        how = "click:hid"
+                        palette.click_swatch(kids, target_idx, pid=None); time.sleep(0.35)
+                        after = palette.selected_index(pal, kids)
+                    rb = {"before": before, "after": after, "requested": target_idx, "name": palette.name_of(target_idx), "hex": palette.hex_of(target_idx), "how": how}
+                    if after == target_idx:
+                        return ok("palette", f"{info['name']} color -> {palette.name_of(target_idx)} (#{palette.hex_of(target_idx)})", rb)
+                    return unsure("palette", f"clicked swatch {target_idx}, ring now at {after}", rb)
+                finally:
+                    closed = palette.close_palette(root)
+                    if not closed:
+                        keys.press("escape", pid)
+        if action in ("delete", "rename"):
+            # fail-closed: the target must be the ONLY selected track, and Logic's own menu must say "1 Track"
+            sel = logic_tracks("select", index=info["index"])
+            selected = [t["index"] for t in ax_logic.list_tracks(w) if t["selected"]]
+            if selected != [info["index"]]:
+                return fail("ax", f"refusing {action}: selection is {selected}, expected [{info['index']}]", "select the track first")
+            if action == "rename" and not new_name:
+                return fail("ax", "need new_name")
+            verb = "Delete" if action == "delete" else "Rename"
+            n0 = len(ax_logic.track_items(w))
+            with _front():
+                # Menu titles only re-validate when the menu opens: "Delete Track" (1 selected) vs "Delete 8 Tracks".
+                pressed, titles = ax_logic.press_fresh_menu_item(root, "Track", rf"^{verb} (Track|1 Track)$")
+                if not pressed:
+                    return fail("menu", f"Logic says {[t for t in titles if t.startswith(verb)]}; refusing (selection is not exactly 1 track)")
+                time.sleep(0.5)
+                if action == "delete":
+                    n1 = len(ax_logic.track_items(w))
+                    return ok("menu", f"deleted {info['name']}: {n0} -> {n1}") if n1 == n0 - 1 else unsure("menu", f"count {n0} -> {n1}; confirm dialog?", {"windows": ax_logic.window_titles(root)})
+                keys.press("cmd+a", _pid()); time.sleep(0.05)
+                keys.type_keys(new_name, _pid()) or keys.type_text(new_name, _pid())
+                time.sleep(0.1); keys.press("return", _pid()); time.sleep(0.5)
+            after = ax_logic.track_info(ax_logic.find_track(w, info["index"]))
+            return ok("menu", f"renamed {info['name']!r} -> {after['name']!r}", after) if after["name"] == new_name else unsure("menu", f"name now {after['name']!r}", after)
+        return fail("tracks", f"unknown action {action}")
+
+    return _verified(_act())
 
 
 @mcp.tool()
+@serialized(read_actions={"ports"})
 def logic_midi(
     action: Literal["note", "chord", "sequence", "cc", "program", "pitch_bend", "aftertouch", "sysex", "mmc", "ports", "mcu_button", "mcu_strip", "mcu_fader"],
     note: int | None = None,
@@ -513,42 +568,62 @@ def logic_midi(
     command: str | None = None,
     strip: int = 0,
 ) -> dict:
-    """Send MIDI into Logic's Virtual In (lands on the record-armed track) or drive the MCU surface."""
+    """Send MIDI into Logic's Virtual In (lands on the record-armed track) or drive the MCU surface.
+
+    Nothing on the Virtual In path can be read back, so those results are `uncertain` with accepted=true:
+    the bytes left this process. mcu_button is confirmed only by that button's own LED arriving after the press."""
     b = bus()
     if action == "ports":
         return b.list_ports()
+    hi_value = 16383 if action in ("pitch_bend", "mcu_fader") else 127
+    for nm, v, lo, hi in (("note", note, 0, 127), ("velocity", velocity, 0, 127), ("channel", channel, 1, 16),
+                          ("duration", duration, 0, 60), ("bpm", bpm, 5, 990), ("number", number, 0, 127),
+                          ("value", value, 0, hi_value), ("strip", strip, 0, 8)):
+        if v is not None and not finite(v, lo, hi):
+            return fail("midi", f"{nm} must be a finite number {lo}..{hi}, got {v!r}")
+    if notes is not None and any(isinstance(n, bool) or not isinstance(n, int) or not 0 <= n <= 127 for n in notes):
+        return fail("midi", "notes must be integers 0..127")
     if action in ("note", "chord", "sequence", "cc", "program", "pitch_bend", "aftertouch", "sysex", "mmc") and not b.open_logic_in():
         return fail("midi", "'Logic Pro Virtual In' port not found", "Start Logic Pro")
     if action == "note" and note is not None:
-        return ok("midi", f"note {note} vel {velocity} ch {channel}") if b.note(note, velocity, channel, duration) else fail("midi", "send failed")
+        return sent("midi", f"note {note} vel {velocity} ch {channel}") if b.note(note, velocity, channel, duration) else fail("midi", "send failed")
     if action == "chord" and notes:
-        return ok("midi", f"chord {notes}") if b.chord(notes, velocity, channel, duration) else fail("midi", "send failed")
+        return sent("midi", f"chord {notes}") if b.chord(notes, velocity, channel, duration) else fail("midi", "send failed")
     if action == "sequence" and steps:
         b.sequence(steps, bpm, channel)
-        return ok("midi", f"played {len(steps)} steps at {bpm} bpm")
+        return sent("midi", f"played {len(steps)} steps at {bpm} bpm")
     if action == "cc" and number is not None and value is not None:
-        return ok("midi", f"cc{number}={value}") if b.cc(number, value, channel) else fail("midi", "send failed")
+        return sent("midi", f"cc{number}={value}") if b.cc(number, value, channel) else fail("midi", "send failed")
     if action == "program" and number is not None:
-        return ok("midi", f"program {number}") if b.program(number, channel) else fail("midi", "send failed")
+        return sent("midi", f"program {number}") if b.program(number, channel) else fail("midi", "send failed")
     if action == "pitch_bend" and value is not None:
-        return ok("midi", f"pitch bend {value}") if b.pitch_bend(value, channel) else fail("midi", "send failed")
+        return sent("midi", f"pitch bend {value}") if b.pitch_bend(value, channel) else fail("midi", "send failed")
     if action == "aftertouch" and value is not None:
-        return ok("midi", f"aftertouch {value}") if b.aftertouch(value, channel) else fail("midi", "send failed")
+        return sent("midi", f"aftertouch {value}") if b.aftertouch(value, channel) else fail("midi", "send failed")
     if action == "sysex" and data:
-        return ok("midi", f"sysex {len(data)} bytes") if b.sysex(data) else fail("midi", "send failed")
+        return sent("midi", f"sysex {len(data)} bytes") if b.sysex(data) else fail("midi", "send failed")
     if action == "mmc" and command in MMC:
         return unsure("midi", f"MMC {command} sent; Logic must have 'Listen to MMC Input' enabled") if b.mmc(command) else fail("midi", "send failed")
     if action == "mcu_button" and command in MCU_BUTTONS:
-        b.open_mcu(); b.mcu_button(command); time.sleep(0.2)
-        return (ok if _mcu_live() else unsure)("mcu", f"button {command}", b.mcu.to_dict()) if _mcu_live() else unsure("mcu", "no MCU traffic from Logic; surface not configured", b.mcu.to_dict())
+        b.open_mcu(); t0 = time.time()
+        if not b.mcu_button(command):
+            return fail("mcu", "no MCU handshake from Logic; surface not configured",
+                        "logic_system(action='health') installs the surface", readback=b.mcu.to_dict())
+        time.sleep(0.2)
+        # A live surface is not evidence that the button did anything: only that button's own LED, arriving
+        # after the press, is.
+        if b.mcu.observed_after(f"led:{command}", t0):
+            return ok("mcu", f"button {command}: LED {b.mcu.led(command)}", b.mcu.to_dict())
+        return sent("mcu", f"button {command}", b.mcu.to_dict())
     if action == "mcu_strip" and command:
-        b.open_mcu(); return ok("mcu", f"{command} strip {strip}") if b.mcu_strip(command, strip) else fail("mcu", "bad strip/kind")
+        b.open_mcu(); return sent("mcu", f"{command} strip {strip}") if b.mcu_strip(command, strip) else fail("mcu", "bad strip/kind")
     if action == "mcu_fader" and value is not None:
-        b.open_mcu(); return ok("mcu", f"fader {strip}={value}") if b.mcu_fader(strip, value) else fail("mcu", "send failed")
+        b.open_mcu(); return sent("mcu", f"fader {strip}={value}") if b.mcu_fader(strip, value) else fail("mcu", "send failed")
     return fail("midi", f"bad args for {action}")
 
 
 @mcp.tool()
+@serialized(read_actions={"info"})
 def logic_project(
     action: Literal["launch", "activate", "quit", "open", "save", "save_as", "new", "close", "undo", "redo", "info"],
     path: str | None = None,
@@ -561,11 +636,28 @@ def logic_project(
         return a.to_dict() | {"frontmost": applescript.frontmost()}
     if action == "launch" or action == "activate":
         okk, out = applescript.activate(a.name)
-        time.sleep(1.0 if action == "launch" else 0.2)
-        return ok("applescript", out or action, target.find().to_dict()) if okk else fail("applescript", out)
+        if not okk:
+            return fail("applescript", out)
+        now = None
+        for _ in range(40 if action == "launch" else 1):     # launch can take seconds; activate is immediate
+            time.sleep(0.25 if action == "launch" else 0.2)
+            now = target.find()
+            if now is not None and now.running:
+                return ok("applescript", out or action, now.to_dict())
+        return sent("applescript", action, now.to_dict() if now else None)
     if action == "quit":
         okk, out = applescript.quit_app(a.name)
-        return ok("applescript", "quit sent") if okk else fail("applescript", out)
+        if not okk:
+            return fail("applescript", out)
+        # Quit is a request: an unsaved-changes sheet keeps Logic alive. Confirmed only once the process is gone.
+        now = None
+        for _ in range(20):
+            time.sleep(0.25)
+            now = target.find()
+            if now is None or not now.running:
+                return ok("applescript", "Logic quit", now.to_dict() if now else None)
+        return sent("applescript", "quit", now.to_dict() if now else None,
+                    fix="Logic is still running: a save sheet may be waiting for a human")
     if action == "open" and path:
         okk, out = applescript.open_file(a.name, path)
         return unsure("applescript", "open sent; verify window title") if okk else fail("applescript", out)
@@ -579,7 +671,49 @@ def logic_project(
     return fail("project", f"bad args for {action}")
 
 
+def _offline_in_place_blocker(bundle) -> tuple[str, str] | None:
+    """(reason, fix) when an in-place ProjectData patch must not proceed, else None.
+
+    Proceeds only when Logic is not running at all, or when every Logic window is visible to Accessibility
+    and none of them shows this bundle. "Logic is running but its windows cannot be seen" is not proof
+    that the project is closed, and absence of evidence is not permission.
+    """
+    from pathlib import Path
+    from urllib.parse import unquote, urlparse
+
+    a = _app()
+    if a is None or not a.running:
+        return None
+    if not ax.trusted():
+        return ("Logic is running and Accessibility is not trusted, so whether this project is open cannot be proven",
+                "quit Logic, grant Accessibility, or omit in_place to patch a clone instead")
+    if not doctor.session_state()["ok"]:
+        return ("screen locked or display asleep: Logic's windows are invisible, so the project state cannot be proven",
+                "unlock the Mac, or omit in_place")
+    wins = ax.windows(ax.app(a.pid))
+    if not wins:
+        return ("Logic is running but shows no window to Accessibility; the project state cannot be proven",
+                "quit Logic, or omit in_place")
+    want = Path(bundle).expanduser().resolve()
+    for w in wins:
+        doc = str(ax.attr(w, "AXDocument") or "")
+        title = str(ax.title(w) or "")
+        if doc:
+            p = unquote(urlparse(doc).path) if "://" in doc else doc
+            try:
+                if Path(p).resolve() == want:
+                    return ("Logic has this project open; close it first or omit in_place",
+                            "Logic rewrites ProjectData on save, which would discard the patch")
+            except OSError:
+                pass
+        if title == want.stem or title.startswith(want.stem + " "):
+            return (f"a Logic window titled {title!r} looks like this project; close it first or omit in_place",
+                    "Logic rewrites ProjectData on save, which would discard the patch")
+    return None
+
+
 @mcp.tool()
+@serialized(read_actions={"list"})
 def logic_offline(
     action: Literal["list", "rename"],
     project: str,
@@ -619,13 +753,10 @@ def logic_offline(
     except (ValueError, TypeError, KeyError) as e:
         return fail("offline", str(e))
     if in_place:
-        a = _app()
-        w = _win()
-        if w is not None:
-            doc = str(ax.attr(w, "AXDocument") or "")
-            if bundle.name in doc:
-                return fail("offline", "Logic has this project open; close it first or omit in_place",
-                            "Logic rewrites ProjectData on save, which would discard the patch")
+        # Fail closed: the original is patched only when it is PROVEN that Logic does not have it open.
+        blocked = _offline_in_place_blocker(bundle)
+        if blocked:
+            return fail("offline", *blocked)
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         shutil.copy2(pdata, pdata.with_name(f"ProjectData.bak-{stamp}"))
         target_bundle = bundle
@@ -653,6 +784,7 @@ def logic_offline(
 
 
 @mcp.tool()
+@serialized()
 def logic_keys(chord: str | None = None, command: str | None = None) -> dict:
     """Escape hatch: send any key chord ('cmd+shift+n') or a named Logic command from key_map to Logic."""
     a = _app()
@@ -672,6 +804,7 @@ def logic_keys(chord: str | None = None, command: str | None = None) -> dict:
 
 
 @mcp.tool()
+@serialized()
 def logic_export(
     action: Literal["bounce", "stems", "options", "dismiss"],
     directory: str | None = None,
@@ -762,6 +895,7 @@ def logic_export(
 
 
 @mcp.tool()
+@serialized(read_actions={"remotes", "list", "setup"})
 def logic_deliver(
     action: Literal["upload", "bounce_and_upload", "remotes", "list", "setup"],
     directory: str | None = None,
@@ -819,6 +953,7 @@ def logic_deliver(
 
 
 @mcp.tool()
+@serialized(read_actions={"describe", "get", "preset", "windows"})
 def logic_plugins(
     action: Literal["insert", "describe", "get", "set", "switch", "preset", "windows", "close"],
     track: int | None = None,
@@ -936,6 +1071,7 @@ def logic_plugins(
 
 
 @mcp.tool()
+@serialized(read_actions={"analyse", "plan"})
 def logic_level(
     action: Literal["analyse", "plan", "apply", "export_and_plan"],
     paths: list[str] | None = None,
@@ -1059,7 +1195,7 @@ def res_health() -> str:
 
 @mcp.resource("logic://transport")
 def res_transport() -> str:
-    return json.dumps(transport_state())
+    return json.dumps(transport_state(passive=True))   # a read never publishes a MIDI port
 
 
 @mcp.resource("logic://tracks")
@@ -1133,7 +1269,27 @@ def res_regions() -> str:
     })
 
 
-def main() -> None:
+PROFILES = ("full", "local")
+
+
+def main(argv: list[str] | None = None) -> None:
+    """`logic-pro-mcp [--profile full|local]`.
+
+    `full` (the default, so every existing `claude mcp add` entry keeps the surface it was registered with) is
+    the trusted-operator surface: every dispatcher, including raw keys/MIDI/menus, recording, deletion, upload
+    and offline binary edits. It is NOT a safe surface for an unattended small model. `local` serves the
+    eight-tool compact profile from logic_mcp/local.py, a separate server that rejects every other tool name
+    at tools/call; LOGIC_MCP_PROFILE=local selects the same.
+    """
+    import argparse
+    import os
+    p = argparse.ArgumentParser(prog="logic-pro-mcp")
+    p.add_argument("--profile", choices=PROFILES, default=os.environ.get("LOGIC_MCP_PROFILE", "full"))
+    args = p.parse_args(argv)
+    if args.profile == "local":
+        from .local import main as local_main
+        local_main()
+        return
     mcp.run(transport="stdio")
 
 
@@ -1223,6 +1379,7 @@ def _osc_ready(timeout: float = 10.0) -> tuple[osc.LogicPad | None, dict | None]
 
 
 @mcp.tool()
+@serialized(read_actions={"status", "feedback"})
 def logic_osc(
     action: Literal["connect", "status", "transport", "select", "mute", "solo", "volume", "pan",
                     "master_volume", "bank", "send", "feedback", "disconnect",
@@ -1272,14 +1429,21 @@ def logic_osc(
         if _osc_dev is not None:
             _osc_dev.close(); _osc_dev = None
         return ok("osc", "device closed")
+    if action == "status":
+        # A read: reports the surface that exists and never advertises, binds, clicks Logic's alert or switches
+        # pages to produce one. `connect` is the explicit way to bring the device up.
+        dev = _osc_dev
+        if dev is None or not dev.connected:
+            return fail("osc", "OSC surface not connected", "logic_osc(action='connect')")
+        return ok("osc", "snapshot", dev.snapshot())
     dev, err = _osc_ready()
     if err:
         return err
-    if action in ("connect", "status", "transport", "bank", "select", "mute", "solo", "volume", "master_volume"):
+    if action in ("connect", "transport", "bank", "select", "mute", "solo", "volume", "master_volume"):
         dev.ensure_page(1)                           # Logic drops /1/* while the surface sits on another page
     t0 = time.time()
-    if action in ("connect", "status"):
-        return ok("osc", "connected" if action == "connect" else "snapshot", dev.snapshot())
+    if action == "connect":
+        return ok("osc", "connected", dev.snapshot())
     if action == "feedback":
         time.sleep(wait)
         return ok("osc", f"{dev.rx_count} messages total", [(round(t - t0, 2), a, v) for t, a, v in dev.recent(since=t0)])
@@ -1323,7 +1487,7 @@ def logic_osc(
         # Logic's own value, and /2/panval<strip> is its own printed readout ("L23", "C", "R40").
         if not strip or not 1 <= strip <= 8:
             return fail("osc", "strip must be 1..8 (position inside the current bank; use bank to move)")
-        if value is None:
+        if not finite(value, 0.0, 1.0):
             return fail("osc", "value 0..1 required (0 = hard left, 0.5 = centre, 1 = hard right)")
         dev.ensure_page(2)
         path = f"/2/pan{strip}"
@@ -1345,7 +1509,7 @@ def logic_osc(
         if not strip or not 1 <= strip <= 8:
             return fail("osc", "strip must be 1..8 (position inside the current bank; use bank to move)")
         if action == "volume":
-            if value is None:
+            if not finite(value, 0.0, 1.0):
                 return fail("osc", "value 0..1 required")
             path = f"/1/volume{strip}"
             dev.send(path, float(value))
@@ -1362,7 +1526,7 @@ def logic_osc(
             return unsure("osc", f"volume strip {strip} ({name}): asked {value}, Logic reads {echo[0]}", dev.snapshot()["bank"][strip - 1])
         return ok("osc", f"{action} strip {strip} ({name}) -> {echo[0]}", dev.snapshot()["bank"][strip - 1])
     if action == "master_volume":
-        if value is None:
+        if not finite(value, 0.0, 1.0):
             return fail("osc", "value 0..1 required")
         dev.send("/1/mastervolume", float(value))
         echo = dev.wait_for("/1/mastervolume", timeout=wait, since=t0)
