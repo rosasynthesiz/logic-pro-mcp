@@ -61,7 +61,7 @@ dev = ["pytest>=8.4.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --strict-markers"
+addopts = "-q --strict-markers -m 'not live'"
 markers = ["live: needs Logic Pro running (excluded from the default run)"]
 
 [build-system]

@@ -252,7 +252,7 @@ and rejected segments stay in the payload with their reason so a wrong call is a
 ## Tests
 
 ```bash
-uv sync --group dev
+uv sync --frozen --group dev
 uv run pytest              # runs with Logic CLOSED and no Accessibility grant
 uv run pytest -m live      # the few that need the app
 ```
@@ -261,3 +261,10 @@ The suite covers the parts that decide what is true: the result envelope, the OS
 measured address quirks, the ProjectData binary layout (against a synthetic file built independently to the
 documented format), dialogue detection, cue WAVs including UTF-8 Tamil labels, loudness maths, recipe
 resolution and which cloud account uploads go to.
+
+Default pytest runs exclude `live` tests; `-m live` explicitly overrides that filter. macOS CI uses
+frozen dependencies and runs only the non-live suite, without launching Logic or the server. Transport
+regressions mock all application and hardware boundaries: unknown play/record state refuses toggles,
+Space stop requires confirmed playback, uncertain MCU stop readback cannot fall through to Space, and
+record success requires confirmed recording. These checks do not establish live Logic or device behavior;
+the transport safety changes have not been verified against a running Logic session.

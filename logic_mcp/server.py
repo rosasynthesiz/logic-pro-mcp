@@ -169,28 +169,32 @@ def logic_transport(
     b = bus(); w = _win()
 
     if action in ("play", "record"):
-        if _playing() and action == "play":
-            return ok("readback", "already playing", transport_state())
+        field = "recording" if action == "record" else "playing"
+        s = transport_state()
+        if s.get(field) is True:
+            return ok("readback", f"already {field}", s)
+        if s.get(field) is not False:
+            return unsure("readback", f"{field} state unknown; refusing to toggle {action}", s)
         if w is not None and (el := ax_logic.bar_control(w, action)) is not None:
             r = ax_logic.set_checkbox(el, True); time.sleep(0.3); s = transport_state()
-            good = s.get("recording") if action == "record" else s.get("playing")
-            return ok("ax", f"{action} via {r['how']}", s) if good else unsure("ax", f"pressed {action}, readback={good}", s)
+            good = s.get(field)
+            return ok("ax", f"{action} via {r['how']}", s) if good is True else unsure("ax", f"pressed {action}, readback={good}", s)
         if _mcu_live() and b.mcu_button(action):
             time.sleep(0.5); s = transport_state()
-            return ok("mcu", action, s) if s.get("playing") else unsure("mcu", "button sent, LED not lit", s)
+            return ok("mcu", action, s) if s.get(field) is True else unsure("mcu", f"button sent, {field} not confirmed", s)
         if _key("play_stop" if action == "play" else "record"):
             time.sleep(0.5); s = transport_state()
-            return ok("keys", action, s) if s.get("playing") else unsure("keys", "key sent, no readback", s)
+            return ok("keys", action, s) if s.get(field) is True else unsure("keys", f"key sent, {field} not confirmed", s)
         return fail("transport", "no channel available", "grant Accessibility or wait for MCU handshake")
 
     if action == "stop":
-        if _playing() is False:
-            return ok("readback", "already stopped", transport_state())
+        s = transport_state()
+        if s.get("playing") is False:
+            return ok("readback", "already stopped", s)
         if _mcu_live() and b.mcu_button("stop"):
-            time.sleep(0.5)
-            if _playing() is False:
-                return ok("mcu", "stop", transport_state())
-        if _key("play_stop"):
+            time.sleep(0.5); s = transport_state()
+            return ok("mcu", "stop", s) if s.get("playing") is False else unsure("mcu", "stop sent, stopped state not confirmed", s)
+        if s.get("playing") is True and _key("play_stop"):
             time.sleep(0.5); s = transport_state()
             return ok("keys", "stop", s) if s.get("playing") is False else unsure("keys", "space sent, still playing?", s)
         return unsure("mmc", "MMC stop sent (needs 'Listen to MMC')") if b.mmc("stop") else fail("transport", "no channel")
