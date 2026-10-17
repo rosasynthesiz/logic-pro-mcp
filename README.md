@@ -46,7 +46,9 @@ set_mute, set_gain, and nothing else -- no raw keys/MIDI/OSC, no record, delete,
 edits, and every other tool name is refused at the handler. Arguments are validated against strict schemas
 (unknown keys rejected), writes need index AND name of a fresh track list, reads never publish a MIDI port
 or bind a surface. The default profile stays `full`. Design, limits and the Ollama configuration are in
-[`docs/local-model.md`](docs/local-model.md); it has not been exercised against a model or a live Logic.
+[`docs/local-model.md`](docs/local-model.md). First fake-adapter model run (`docs/local-model-eval.md`): neither
+`qwen3.5:4b` nor `9b` passed the gate -- the server guards held, the misses were model intent errors -- and the
+surface was adjusted after it. Nothing has been exercised against a live Logic.
 
 ## Tools
 - `logic_system` — health/doctor, permissions, midi_ports, key_map, `ax_dump` / `ax_find` (explore Logic's UI tree)

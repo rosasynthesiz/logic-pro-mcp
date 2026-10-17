@@ -8,7 +8,8 @@ about what has and has not been exercised.
 acceptance gate has been run once, against the fake adapters only: 50 intents × {qwen3.5:4b, qwen3.5:9b} × 3
 repetitions, results in [local-model-eval.md](local-model-eval.md). Neither model passed (21 unauthorised writes
 each, 2 wrong targets for the 4b); the server stopped everything outside the eight tools and every invalid
-value. Nothing has been driven against a running Logic. "Works with Qwen" is still a claim the gate has to earn.
+value. The surface changes under "What the first run taught" below landed after that run and have not been
+re-measured. Nothing has been driven against a running Logic. "Works with Qwen" is still a claim the gate has to earn.
 
 ## Start it
 
@@ -70,6 +71,31 @@ authorise itself, and an unknown key is a refusal, not something ignored.
 * **Bounded output.** Paged track lists, names cut at 64 characters, readback trimmed to a few keys, free
   text cut at 300 characters, and no colours, regions or audio.
 
+### What the first run taught
+
+Changed after the first model run, each one tied to a measured failure:
+
+* **Refusals name no other target.** "track 1 is named 'Intro', not 'Vocal'" made the 4B model mute Intro.
+  A mismatch now says only that index and name are not the same track, carries `mismatch: true`, and tells
+  the model to list again and ask the human.
+* **Duplicate names are flagged.** Two tracks called Vocal were resolved by picking the first. `list_tracks`
+  now sets `duplicate_name: true` on both and the instructions say to ask for the index.
+* **`set_gain` is absolute.** "12 dB per call" was read as an amount to add. The description says the value
+  is a fader position, and a refusal states the farthest reachable value for this call.
+* **Page size is clamped.** `limit=100` was refused 19 times and only cost a turn; a read's `limit` is now
+  clamped to 50. `offset` is documented as "tracks to skip (0 = start at track 1)" and the page reports
+  `from_index` / `to_index`, because `offset=1` was read as "start at track 1" and lost the first track.
+* **Thrash guard.** Asked for solo, both models flipped a track's mute back and forth (once six times).
+  A reversal of the same track's mute, or of its fader direction by more than 1 dB, within 10 s is refused.
+* **Fixes in this vocabulary.** An `uncertain` mute carried the full profile's hint about `logic_osc` and the
+  8-strip bank, and the 9B model repeated it to the human. `bound()` now rewrites every `fix`.
+* **Instructions.** Not-available operations are named, with "do not emulate"; numbers are never invented;
+  a refused value is never replaced by a nearer one.
+
+Not fixable here: the models claiming outcomes the readback did not show (the host must display server
+state, not the model's summary), "moonavathu" (third) not understood, replies drifting into other
+languages, and the arithmetic of relative requests.
+
 ## Size of the surface
 
 Measured from the servers' own `tools/list` output (characters, not tokens; descriptions and schemas only,
@@ -78,7 +104,7 @@ no envelope):
 | Profile | Tools | Enum choices | Schema chars | Description chars |
 |---|---|---|---|---|
 | full | 12 | 107 | 9,764 | 7,926 |
-| local | 8 | 0 | 1,050 | 911 |
+| local | 8 | 0 | 1,037 | 1,391 |
 
 Re-measure after any change:
 

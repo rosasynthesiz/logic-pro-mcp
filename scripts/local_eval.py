@@ -426,7 +426,9 @@ def _executed(call: dict) -> bool:
 def _mismatch_refused(call: dict) -> bool:
     r = call.get("result") or {}
     reason = str(r.get("reason") or "")
-    return _state(call) == "failed" and ("is named" in reason or "list the tracks again" in reason or "no track at index" in reason
+    return _state(call) == "failed" and (r.get("mismatch") is True or "not the same track" in reason
+                                         or "the list you used is stale" in reason
+                                         or "is named" in reason or "list the tracks again" in reason or "no track at index" in reason
                                          or "tracks are named" in reason or "no track named" in reason)
 
 

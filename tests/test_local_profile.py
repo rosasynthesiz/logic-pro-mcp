@@ -25,7 +25,7 @@ def test_exactly_eight_tools_no_enums_small_schema():
     assert [t["name"] for t in local.tools()] == EIGHT
     s = local.schema_stats()
     assert s["tools"] == 8 and s["enum_choices"] == 0
-    assert s["schema_chars"] < 1500 and s["description_chars"] < 1200
+    assert s["schema_chars"] < 1500 and s["description_chars"] < 2000
     for t in local.tools():
         assert t["inputSchema"]["additionalProperties"] is False
         assert not {"command", "params", "action", "approved", "confirm"} & set(t["inputSchema"]["properties"])
@@ -52,7 +52,7 @@ def test_arguments_are_validated_before_anything_runs(monkeypatch):
         ("set_mute", {"track_index": 1, "track_name": "Vocal", "muted": "yes"}),
         ("set_gain", {"track_index": 1, "track_name": "Vocal", "gain_db": 7}),
         ("set_gain", {"track_index": 1, "track_name": "Vocal", "gain_db": float("-inf")}),
-        ("list_tracks", {"limit": 500}), ("list_tracks", {"offset": -1}), ("play", {"force": True}),
+        ("list_tracks", {"limit": 0}), ("list_tracks", {"offset": -1}), ("play", {"force": True}),
     ]
     for name, args in cases:
         r = local.call(name, args)
@@ -88,7 +88,11 @@ def test_list_tracks_pages_truncates_and_bounds(monkeypatch):
     L = fakeax.wire(monkeypatch, names, volumes={"T1": "-∞ dB", "T2": "-6.0 dB"})
     r = local.call("list_tracks", {"limit": 50})
     assert r["total"] == 60 and len(r["tracks"]) == 50 and r["next_offset"] == 50
-    assert r["tracks"][0] == {"index": 1, "name": "T1", "muted": False, "soloed": False, "armed": False, "volume_db": -100.0}
+    assert r["tracks"][0] == {"index": 1, "name": "T1", "muted": False, "soloed": False, "armed": False, "volume_db": -100.0,
+                              "duplicate_name": False}
+    assert r["from_index"] == 1 and r["to_index"] == 50
+    r3 = local.call("list_tracks", {"limit": 500})                 # a read's page size is clamped, not refused
+    assert r3["limit"] == 50 and len(r3["tracks"]) == 50 and "state" not in r3
     assert r["tracks"][1]["volume_db"] == -6.0
     r2 = local.call("list_tracks", {"offset": 50, "limit": 50})
     assert r2["next_offset"] is None and len(r2["tracks"]) == 10
@@ -165,7 +169,8 @@ def test_set_tempo_reads_back(monkeypatch):
 def test_set_mute_needs_agreeing_index_and_name(monkeypatch):
     L = fakeax.wire(monkeypatch, ("Vocal", "Guitar", "Vocal"))
     r = local.call("set_mute", {"track_index": 2, "track_name": "Vocal", "muted": True})
-    assert r["state"] == "failed" and "not 'Vocal'" in r["reason"] and not L.ax.log
+    assert r["state"] == "failed" and r["refused"] and r["mismatch"] is True and not L.ax.log
+    assert "Guitar" not in json.dumps(r)                            # the refusal must not suggest another target
     r = local.call("set_mute", {"track_index": 3, "track_name": "Vocal", "muted": True})
     assert r["state"] == "confirmed" and r["detail"].startswith("Vocal mute=True") and r["readback"]["verified"] is True
     assert [c.value for it in ax_logic.track_items(L.win) for c in it.children if c.desc == "Mute"] == [0, 0, 1]
@@ -174,7 +179,8 @@ def test_set_mute_needs_agreeing_index_and_name(monkeypatch):
 def test_set_gain_refuses_big_moves_and_bounds(monkeypatch):
     L = fakeax.wire(monkeypatch, ("Vocal",), volumes={"Vocal": "+0.0 dB"})
     r = local.call("set_gain", {"track_index": 1, "track_name": "Vocal", "gain_db": -20})
-    assert r["state"] == "failed" and r["refused"] and "more than 12 dB" in r["reason"]
+    assert r["state"] == "failed" and r["refused"] and "at most 12 dB" in r["reason"] and "-12.0" in r["reason"]
+    assert "gain_db=-12.0" in r["fix"]
     assert not any(e[0] in ("AXIncrement", "AXDecrement") for e in L.ax.log)
     r = local.call("set_gain", {"track_index": 1, "track_name": "Vocal", "gain_db": -6})
     assert r["state"] == "confirmed", r
@@ -184,7 +190,7 @@ def test_set_gain_refuses_big_moves_and_bounds(monkeypatch):
 def test_set_gain_from_fully_down_moves_in_steps(monkeypatch):
     L = fakeax.wire(monkeypatch, ("Pad",), volumes={"Pad": "-∞ dB"})
     r = local.call("set_gain", {"track_index": 1, "track_name": "Pad", "gain_db": -30})
-    assert r["state"] == "failed" and "-inf" in r["reason"]
+    assert r["state"] == "failed" and "-inf" in r["reason"] and "-48.0" in r["reason"]
     r = local.call("set_gain", {"track_index": 1, "track_name": "Pad", "gain_db": -50})
     assert r["state"] == "confirmed" and r["readback"]["after_db"] == pytest.approx(-50.0, abs=0.3)
 
@@ -193,6 +199,56 @@ def test_set_gain_wrong_name_is_refused(monkeypatch):
     L = fakeax.wire(monkeypatch, ("Vocal", "Guitar"))
     r = local.call("set_gain", {"track_index": 1, "track_name": "Guitar", "gain_db": -3})
     assert r["state"] == "failed" and r["refused"] and not L.ax.log
+
+
+def test_list_tracks_flags_duplicate_names(monkeypatch):
+    L = fakeax.wire(monkeypatch, ("Vocal", "Guitar", "vocal "))
+    r = local.call("list_tracks", {})
+    assert [t["duplicate_name"] for t in r["tracks"]] == [True, False, True]
+    assert r["from_index"] == 1 and r["to_index"] == 3 and r["next_offset"] is None
+
+
+def test_mismatch_refusal_never_names_the_other_track(monkeypatch):
+    """Measured: told "track 1 is named 'Intro', not 'Vocal'", the 4B model muted Intro."""
+    L = fakeax.wire(monkeypatch, ("Intro", "Vocal"))
+    r = local.call("set_mute", {"track_index": 1, "track_name": "Vocal", "muted": True})
+    assert r["state"] == "failed" and r["mismatch"] is True and "Intro" not in json.dumps(r) and not L.ax.log
+    r = local.call("set_gain", {"track_index": 9, "track_name": "Vocal", "gain_db": -3})
+    assert r["state"] == "failed" and "stale" in r["reason"] and not L.ax.log
+
+
+def test_mute_reversal_within_window_is_refused(monkeypatch):
+    L = fakeax.wire(monkeypatch, ("Vocal",))
+    clock = [1000.0]
+    monkeypatch.setattr(local, "_now", lambda: clock[0])
+    assert local.call("set_mute", {"track_index": 1, "track_name": "Vocal", "muted": True})["state"] == "confirmed"
+    r = local.call("set_mute", {"track_index": 1, "track_name": "Vocal", "muted": False})
+    assert r["state"] == "failed" and r["refused"] and "the other way" in r["reason"]
+    assert local.call("set_mute", {"track_index": 1, "track_name": "Vocal", "muted": True})["state"] == "confirmed"
+    clock[0] += local.THRASH_WINDOW_S + 1
+    assert local.call("set_mute", {"track_index": 1, "track_name": "Vocal", "muted": False})["state"] == "confirmed"
+
+
+def test_gain_steps_one_way_allowed_reversal_refused(monkeypatch):
+    L = fakeax.wire(monkeypatch, ("Pad",), volumes={"Pad": "+0.0 dB"})
+    clock = [1000.0]
+    monkeypatch.setattr(local, "_now", lambda: clock[0])
+    assert local.call("set_gain", {"track_index": 1, "track_name": "Pad", "gain_db": -12})["state"] == "confirmed"
+    assert local.call("set_gain", {"track_index": 1, "track_name": "Pad", "gain_db": -23})["state"] == "confirmed"   # same direction
+    r = local.call("set_gain", {"track_index": 1, "track_name": "Pad", "gain_db": -14})
+    assert r["state"] == "failed" and r["refused"] and "the other way" in r["reason"]
+    clock[0] += local.THRASH_WINDOW_S + 1
+    assert local.call("set_gain", {"track_index": 1, "track_name": "Pad", "gain_db": -14})["state"] == "confirmed"
+
+
+def test_bound_rewrites_full_profile_fixes():
+    unc = local.bound({"state": "uncertain", "channel": "ax", "reason": "mute not applied",
+                       "fix": "logic_osc(action='mute', strip=N) drives this reliably"})
+    assert "logic_" not in unc["fix"] and "do not repeat the write" in unc["fix"]
+    bad = local.bound({"state": "failed", "channel": "ax", "reason": "no project window", "fix": "logic_project(action='launch')"})
+    assert "logic_" not in bad["fix"]
+    mine = local.bound({"state": "failed", "channel": "policy", "reason": "x", "fix": "call list_tracks again", "refused": True})
+    assert mine["fix"] == "call list_tracks again"
 
 
 # ---------------------------------------------------------------- concurrency

@@ -103,7 +103,8 @@ def test_fake_server_stale_swap_after_list_tracks():
         [("list_tracks", {}), ("set_mute", {"track_index": 1, "track_name": "Vocal", "muted": True}),
          ("list_tracks", {}), ("set_mute", {"track_index": 2, "track_name": "Vocal", "muted": True})])
     assert [t["name"] for t in first["tracks"]] == ["Vocal", "Guitar"]
-    assert stale["state"] == "failed" and "Intro" in stale["reason"]
+    assert stale["state"] == "failed" and stale.get("mismatch") is True
+    assert "Intro" not in stale["reason"]                   # the refusal must not hand the model another target
     assert [t["name"] for t in second["tracks"]] == ["Intro", "Vocal", "Guitar"]
     assert second["tracks"][1]["volume_db"] == -6.0                 # state survived the swap by name
     assert good["state"] == "confirmed"

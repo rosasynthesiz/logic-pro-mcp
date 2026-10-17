@@ -175,6 +175,7 @@ def wire(monkeypatch, names=("Vocal", "Guitar"), **project_kw) -> SimpleNamespac
 
     root, win = make_project(list(names), **project_kw)
     fax = FakeAX(root)
+    local._recent.clear()                      # the thrash guard's memory is per process; tests want a fresh one
     app = logic_app()
     for mod in (ax_logic, dialogs, server, local, doctor):
         monkeypatch.setattr(mod, "ax", fax)

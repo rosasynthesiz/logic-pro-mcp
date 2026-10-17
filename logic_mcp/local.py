@@ -19,16 +19,31 @@ What the eight tools promise
   unlocked, Logic shows a project and no alert or sheet is up; resolves its target exactly (index AND
   name must agree with a fresh read); takes the mutation guard; drives the existing channels; and is
   `confirmed` only on fresh readback. set_gain is capped at +6 dB and to a 12 dB move per call.
-* Outputs are bounded: paged track lists, readback trimmed to a few keys, strings cut short.
+* Outputs are bounded: paged track lists, readback trimmed to a few keys, strings cut short, and every
+  `fix` rewritten in this profile's own vocabulary (a hint naming a full-profile tool is useless here and,
+  measured, gets parroted to the human).
+
+What the first model run taught (docs/local-model-eval.md)
+----------------------------------------------------------
+Every out-of-range value, stale index, locked screen and alert was stopped by the server; the failures
+that got through were the model acting on a GUESS the surface made easy: a refusal that named the track
+actually at that index was read as "mute that one instead"; "12 dB per call" was read as an amount to
+add; `limit=100` was refused instead of clamped; `offset` was read as 1-based; duplicate names were
+resolved by picking the first; solo was emulated with mutes, flip-flopping. Hence: refusals say what is
+wrong without suggesting another target, list_tracks flags duplicate names and clamps the page size,
+set_gain says it is absolute and tells the farthest reachable value, and a reversal of the same track's
+mute or fader direction within a few seconds is refused as thrash.
 
 Everything flows through the same `logic_transport` / `logic_tracks` code the full profile uses: this is
 a policy layer over the existing channels, not a second implementation. None of it has been exercised
-against a running Logic or a running model here; see docs/local-model.md for what was and was not tested.
+against a running Logic; the model half of the acceptance gate is run by scripts/local_eval.py.
 """
 from __future__ import annotations
 
 import json
 import math
+import time
+from collections import Counter
 from typing import Any, Callable
 
 from . import doctor, policy, server, target
@@ -41,15 +56,26 @@ LIST_MAX, LIST_DEFAULT = 50, 20
 NAME_MAX = 64
 TEXT_MAX = 300
 FADER_DOWN_DB = -100.0            # how a fader at -inf is reported: JSON has no infinity
+THRASH_WINDOW_S = 10.0            # a reversal of the same control inside this window is refused
 
 INSTRUCTIONS = (
-    "Logic Pro, local profile. Call health first. Read before you write: list_tracks, then copy BOTH "
-    "track_index and track_name into set_mute / set_gain. A result is true only when state is \"confirmed\"; "
-    "on \"uncertain\" read again and never repeat the write; on \"failed\" tell the human the fix."
+    "Logic Pro, local profile: these eight tools and nothing else. "
+    "1) health first; read before you write: list_tracks before set_mute/set_gain, read_transport before set_tempo. "
+    "2) Copy track_index AND track_name from the SAME row of list_tracks. If the human's index and name point at "
+    "different rows, or the name has duplicate_name=true and the human gave no index, stop and ask; never pick one. "
+    "3) Never invent a number: no tempo given, a percent, 'a bit', 'louder' -> ask for the value in bpm or dB. "
+    "A relative change ('up 10 bpm', '3 dB quieter') -> read first, compute, say both numbers, then set once. "
+    "4) Not available here: record, arm, solo, pan, delete, rename, plug-ins, bounce, upload. Say so and stop; "
+    "do not emulate (solo is not 'mute the others'; play is not record). "
+    "5) A value outside a limit is refused: report the refusal, do not substitute a nearer value. "
+    "6) Only state \"confirmed\" is true. On \"uncertain\" read again and tell the human, never repeat the write. "
+    "On \"failed\" report the fix. Say only what the readback shows."
 )
 
 _tools: dict[str, dict] = {}
 _impls: dict[str, Callable[..., dict]] = {}
+_recent: dict[tuple, tuple[float, float, float]] = {}      # (kind, index, name) -> (from_value, to_value, when)
+_now = time.monotonic
 
 
 def tool(name: str, description: str, schema: dict):
@@ -80,9 +106,11 @@ def call(name: str, arguments: Any) -> dict:
 
 
 # ---------------------------------------------------------------- bounded output
-_KEEP = ("state", "channel", "detail", "reason", "fix", "accepted", "refused", "project_changed")
+_KEEP = ("state", "channel", "detail", "reason", "fix", "accepted", "refused", "mismatch", "project_changed")
 _READBACK_KEYS = ("playing", "recording", "tempo", "index", "name", "mute", "solo", "arm", "selected", "volume_text",
                   "before", "after", "verified", "display", "before_db", "after_db", "how", "strip")
+_UNCERTAIN_FIX = "read list_tracks or read_transport; if Logic still shows the old state tell the human; do not repeat the write"
+_FAILED_FIX = "tell the human what Logic reports; call list_tracks or read_transport if you need the current state"
 
 
 def _short(v: Any) -> Any:
@@ -94,10 +122,17 @@ def _short(v: Any) -> Any:
 
 
 def bound(res: dict) -> dict:
-    """Trim a dispatcher result to what a small model needs: the verdict, the reason, the fix, a little readback."""
+    """Trim a dispatcher result to what a small model needs: the verdict, the reason, a fix in THIS profile's
+    vocabulary, a little readback. A full-profile hint ("logic_osc(action='mute' ...)") is replaced: measured,
+    the model repeats it to the human as if it were advice."""
     if "state" not in res:                      # a plain read: already shaped by the tool
         return res
     out = {k: _short(res[k]) for k in _KEEP if k in res}
+    fix = res.get("fix")
+    if res.get("state") == "uncertain":
+        out["fix"] = _UNCERTAIN_FIX
+    elif res.get("state") == "failed" and (not fix or "logic_" in str(fix)):
+        out["fix"] = _FAILED_FIX
     rb = res.get("readback")
     if isinstance(rb, dict):
         out["readback"] = {k: _short(rb[k]) for k in _READBACK_KEYS if k in rb and not isinstance(rb[k], (dict, list))}
@@ -126,12 +161,56 @@ def _preflight() -> dict | None:
     return None
 
 
+def _target(w, index: int, name: str) -> tuple[Any, dict | None]:
+    """The one header both selectors describe, or a refusal that names NO other track.
+
+    The first run showed why the wording matters: told "track 1 is named 'Intro', not 'Vocal'", the 4B model
+    muted Intro. The refusal now says only that the pair does not match and what to do."""
+    try:
+        return ax_logic.resolve_track(w, index, name, fuzzy=False), None
+    except ax_logic.TargetError as e:
+        msg = str(e)
+        if msg.startswith("no track at index"):
+            return None, fail("ax", f"{msg}: the list you used is stale", "call list_tracks again", refused=True)
+        return None, fail("ax", f"track_index {index} and track_name {name!r} are not the same track; the list you "
+                                "used is stale or the human's request is contradictory",
+                          "call list_tracks; if index and name still disagree, ask the human which track. Do not pick one",
+                          refused=True, mismatch=True)
+
+
+def _thrash(kind: str, index: int, name: str, from_v: float, to_v: float) -> dict | None:
+    """Refuse a reversal of the same control inside THRASH_WINDOW_S: measured, a model asked for solo emulated it by
+    flipping mute back and forth six times. A human who changes their mind repeats the request after the window."""
+    last = _recent.get((kind, index, name))
+    if last is None:
+        return None
+    l_from, l_to, when = last
+    age = _now() - when
+    if age > THRASH_WINDOW_S:
+        return None
+    if kind == "mute":
+        reversed_ = to_v != l_to
+    else:
+        reversed_ = (to_v - l_to) * (l_to - l_from) < 0 and abs(to_v - l_to) > 1.0
+    if not reversed_:
+        return None
+    return fail("policy", f"refusing: this track's {kind} was set the other way {age:.0f} s ago by this session; "
+                          "a reversal needs the human to ask for it",
+                "tell the human what list_tracks shows and wait for their answer", refused=True)
+
+
 def _write(label: str, fn: Callable[[], dict]) -> dict:
     try:
         with policy.guard.held(label):
             return fn()
     except policy.Busy as e:
         return fail("policy", f"refusing {label}: {e}", "wait, then read the state before retrying", refused=True)
+
+
+def _remember(kind: str, index: int, name: str, from_v: float, to_v: float, res: dict) -> dict:
+    if res.get("state") != "failed":
+        _recent[(kind, index, name)] = (from_v, to_v, _now())
+    return res
 
 
 # ---------------------------------------------------------------- the eight tools
@@ -159,24 +238,30 @@ def read_transport() -> dict:
             "reason": s.get("reason")}
 
 
-@tool("list_tracks", "Tracks of the open project: index (1 = top), name, muted, soloed, armed, volume_db "
-                     f"({FADER_DOWN_DB:.0f} = fader fully down). Paged by offset/limit. Copy index AND name into set_mute / set_gain.",
+@tool("list_tracks", "Tracks of the open project, top to bottom: index (1 = top), name, muted, soloed, armed, volume_db "
+                     f"({FADER_DOWN_DB:.0f} = fader fully down), duplicate_name (true = another track has the same name: ask the "
+                     "human which index before writing). offset = tracks to skip (0 = start at track 1); limit = page size, "
+                     f"at most {LIST_MAX} (larger is clamped). Copy index AND name from one row into set_mute / set_gain.",
       {"properties": {"offset": {"type": "integer", "minimum": 0},
-                      "limit": {"type": "integer", "minimum": 1, "maximum": LIST_MAX}}})
+                      "limit": {"type": "integer", "minimum": 1}}})
 def list_tracks(offset: int = 0, limit: int = LIST_DEFAULT) -> dict:
+    limit = min(limit, LIST_MAX)                 # a read's page size is clamped, not refused: measured, the refusal only cost a turn
     w = server._win()
     if w is None:
         return fail("ax", *server._why_no_win())
     rows = ax_logic.list_tracks(w)
+    dup = Counter((t["name"] or "").strip().lower() for t in rows)
     page = rows[offset:offset + limit]
     return {"total": len(rows), "offset": offset, "limit": limit,
+            "from_index": page[0]["index"] if page else None, "to_index": page[-1]["index"] if page else None,
             "next_offset": offset + limit if offset + limit < len(rows) else None,
             "tracks": [{"index": t["index"], "name": (t["name"] or "")[:NAME_MAX], "muted": t["mute"],
                         "soloed": t["solo"], "armed": t["arm"],
-                        "volume_db": _short(ax_logic.parse_db(t.get("volume_text")))} for t in page]}
+                        "volume_db": _short(ax_logic.parse_db(t.get("volume_text"))),
+                        "duplicate_name": dup[(t["name"] or "").strip().lower()] > 1} for t in page]}
 
 
-@tool("play", "Start playback. confirmed only when Logic reads back playing=true.", {})
+@tool("play", "Start playback. Not recording: there is no record tool here. confirmed only when Logic reads back playing=true.", {})
 def play() -> dict:
     return _preflight() or _write("play", lambda: server.logic_transport("play"))
 
@@ -186,7 +271,8 @@ def stop() -> dict:
     return _preflight() or _write("stop", lambda: server.logic_transport("stop"))
 
 
-@tool("set_tempo", f"Set the project tempo in beats per minute ({TEMPO_MIN:.0f}..{TEMPO_MAX:.0f}). confirmed by reading the tempo back.",
+@tool("set_tempo", f"Set the project tempo to an absolute value in beats per minute ({TEMPO_MIN:.0f}..{TEMPO_MAX:.0f}). For a "
+                   "relative change call read_transport first and compute. confirmed by reading the tempo back.",
       {"properties": {"bpm": {"type": "number", "minimum": TEMPO_MIN, "maximum": TEMPO_MAX}}, "required": ["bpm"]})
 def set_tempo(bpm: float) -> dict:
     return _preflight() or _write("set_tempo", lambda: server.logic_transport("set_tempo", tempo=float(bpm)))
@@ -196,34 +282,50 @@ _TARGET = {"track_index": {"type": "integer", "minimum": 1},
            "track_name": {"type": "string", "minLength": 1, "maxLength": NAME_MAX}}
 
 
-@tool("set_mute", "Mute (true) or unmute (false) one track. track_index and track_name must both come from list_tracks and "
-                  "name the same track, or the call is refused.",
+@tool("set_mute", "Mute (true) or unmute (false) one track. track_index and track_name must come from the same row of "
+                  "list_tracks; a mismatch is refused. Not solo, not arm.",
       {"properties": {**_TARGET, "muted": {"type": "boolean"}}, "required": ["track_index", "track_name", "muted"]})
 def set_mute(track_index: int, track_name: str, muted: bool) -> dict:
-    return _preflight() or _write("set_mute", lambda: server.logic_tracks("mute", index=track_index, name=track_name, on=muted))
+    if why := _preflight():
+        return why
+    item, refusal = _target(server._win(), track_index, track_name)
+    if refusal:
+        return refusal
+    cur = ax_logic.track_info(item).get("mute")
+    if why := _thrash("mute", track_index, track_name, float(bool(cur)), float(muted)):
+        return why
+    res = _write("set_mute", lambda: server.logic_tracks("mute", index=track_index, name=track_name, on=muted))
+    return _remember("mute", track_index, track_name, float(bool(cur)), float(muted), res)
 
 
-@tool("set_gain", f"Set one track's fader to gain_db ({GAIN_MIN_DB:.0f}..+{GAIN_MAX_DB:.0f} dB), at most {GAIN_MAX_STEP_DB:.0f} dB away "
-                  "from its current value per call. track_index and track_name must both match the same track in list_tracks.",
+@tool("set_gain", f"Set one track's fader to an ABSOLUTE position gain_db in dB ({GAIN_MIN_DB:.0f}..+{GAIN_MAX_DB:.0f}); it is not an "
+                  f"amount to add. One call may move the fader at most {GAIN_MAX_STEP_DB:.0f} dB from where it is now; a refusal "
+                  "tells you the farthest reachable value. Percent or words are not dB: ask. track_index and track_name must "
+                  "come from the same row of list_tracks.",
       {"properties": {**_TARGET, "gain_db": {"type": "number", "minimum": GAIN_MIN_DB, "maximum": GAIN_MAX_DB}},
        "required": ["track_index", "track_name", "gain_db"]})
 def set_gain(track_index: int, track_name: str, gain_db: float) -> dict:
     if why := _preflight():
         return why
-    w = server._win()
-    try:
-        item = ax_logic.resolve_track(w, track_index, track_name, fuzzy=False)
-    except ax_logic.TargetError as e:
-        return fail("ax", f"refusing set_gain: {e}", "call list_tracks and copy index + name", refused=True)
+    item, refusal = _target(server._win(), track_index, track_name)
+    if refusal:
+        return refusal
     cur = ax_logic.track_db(item)
     if cur is None:
         return fail("ax", "this track's fader has no dB readout", "set it in Logic", refused=True)
+    target_db = float(gain_db)
     base = max(cur, GAIN_MIN_DB)                 # a fader at -inf counts as the floor, so it can be brought up in steps
-    if abs(float(gain_db) - base) > GAIN_MAX_STEP_DB:
-        return fail("policy", f"refusing: {gain_db:+.1f} dB is more than {GAIN_MAX_STEP_DB:.0f} dB from the current "
-                              f"{'-inf' if cur == float('-inf') else f'{cur:+.1f}'} dB",
-                    f"move in steps of at most {GAIN_MAX_STEP_DB:.0f} dB", refused=True)
-    return _write("set_gain", lambda: server.logic_tracks("set_volume", index=track_index, name=track_name, db=float(gain_db)))
+    cur_txt = "-inf" if cur == float("-inf") else f"{cur:+.1f}"
+    if abs(target_db - base) > GAIN_MAX_STEP_DB:
+        reachable = max(GAIN_MIN_DB, min(GAIN_MAX_DB, base + math.copysign(GAIN_MAX_STEP_DB, target_db - base)))
+        return fail("policy", f"refusing: the fader is at {cur_txt} dB and one call may move it at most "
+                              f"{GAIN_MAX_STEP_DB:.0f} dB; the farthest you can set now toward {target_db:+.1f} is {reachable:+.1f}",
+                    f"call set_gain again with gain_db={reachable:+.1f}, read list_tracks, then continue if the human asked for more",
+                    refused=True)
+    if why := _thrash("gain", track_index, track_name, base, target_db):
+        return why
+    res = _write("set_gain", lambda: server.logic_tracks("set_volume", index=track_index, name=track_name, db=target_db))
+    return _remember("gain", track_index, track_name, base, target_db, res)
 
 
 # ---------------------------------------------------------------- measurement
