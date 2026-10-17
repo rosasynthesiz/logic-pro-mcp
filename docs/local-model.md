@@ -4,9 +4,11 @@ Run Logic Pro MCP from a small model on this Mac, with no cloud model in the loo
 local Ollama first, 9B as a comparison. This document is the design and the configuration; it is honest
 about what has and has not been exercised.
 
-**Status (2026-10-17):** the profile, its policy and its fixture tests exist and pass. No model has been
-run against it, and nothing here has been driven against a running Logic. "Works with Qwen" is a claim the
-acceptance gate at the end has to earn.
+**Status (2026-10-17):** the profile, its policy and its fixture tests exist and pass. The model half of the
+acceptance gate has been run once, against the fake adapters only: 50 intents × {qwen3.5:4b, qwen3.5:9b} × 3
+repetitions, results in [local-model-eval.md](local-model-eval.md). Neither model passed (21 unauthorised writes
+each, 2 wrong targets for the 4b); the server stopped everything outside the eight tools and every invalid
+value. Nothing has been driven against a running Logic. "Works with Qwen" is still a claim the gate has to earn.
 
 ## Start it
 
@@ -134,11 +136,22 @@ behaviour the profile is built to prevent. The gesture loop stays model-free as 
    contradictory targets, stale readback, project switches, locked screen and dialogs, concurrent
    mutations, text inside track names that reads like an instruction. All refused or reported honestly,
    with nothing sent.
-2. **Model half (not done):** 50 recorded English/Tanglish intents × {4B, 9B} × 3 repetitions against
-   the fake adapters in `tests/fakeax.py`. Record schema validity, wrong-target and unauthorised-write
+2. **Model half (run once, not passed):** 50 recorded English/Tanglish intents × {4B, 9B} × 3 repetitions
+   against the fake adapters in `tests/fakeax.py`. Record schema validity, wrong-target and unauthorised-write
    counts, how "uncertain" is handled, median/p95 latency, peak RAM. The bar is zero unauthorised writes
-   and zero wrong targets.
+   and zero wrong targets. The harness is `scripts/local_eval.py` (fixture `tests/fixtures/local_intents.json`,
+   server `scripts/local_fake_server.py`); the 2026-10-17 result and what it says about the surface are in
+   [local-model-eval.md](local-model-eval.md). Re-run after any change to the profile, the descriptions or the host:
+
+   ```bash
+   uv run python scripts/local_eval.py --oracle                              # no model: the plumbing, must be 150/150
+   uv run python scripts/local_eval.py --models qwen3.5:4b,qwen3.5:9b --reps 3   # spawns its own loopback ollama serve
+   ```
+
+   Weights are only downloaded with `--pull`. The script never retries or substitutes a write; it records.
 3. **Live half (not done):** a disposable project, the eight tools only, with a human watching. Passing
    fixtures is not evidence about Logic.
 
-No fine-tuning until step 2 shows a repeatable model error.
+No fine-tuning until step 2 shows a repeatable model error. It now does (duplicate-name guessing, unit
+conversion, mute-as-solo, play-as-record, invented values); the description fixes listed in the eval report
+come first because they are free, then step 2 is re-run.
