@@ -37,6 +37,17 @@ hermes mcp add logic-pro-mcp --command uv --args run --directory "/path/to/logic
 ```
 (`logic-mcp` and `logic-mcp-doctor` still work as aliases of the two commands.)
 
+### Local model profile
+```bash
+uv run logic-pro-mcp --profile local      # eight typed tools, for a small local model (Qwen via Ollama)
+```
+A separate server with its own `tools/call`: health, read_transport, list_tracks, play, stop, set_tempo,
+set_mute, set_gain, and nothing else -- no raw keys/MIDI/OSC, no record, delete, upload, quit or offline
+edits, and every other tool name is refused at the handler. Arguments are validated against strict schemas
+(unknown keys rejected), writes need index AND name of a fresh track list, reads never publish a MIDI port
+or bind a surface. The default profile stays `full`. Design, limits and the Ollama configuration are in
+[`docs/local-model.md`](docs/local-model.md); it has not been exercised against a model or a live Logic.
+
 ## Tools
 - `logic_system` — health/doctor, permissions, midi_ports, key_map, `ax_dump` / `ax_find` (explore Logic's UI tree)
 - `logic_transport` — play, stop, record, go_to_beginning, rewind, fast_forward, toggle_cycle, toggle_count_in, toggle_metronome, set_tempo, goto, state
@@ -56,7 +67,15 @@ Resources: `logic://health`, `logic://transport`, `logic://tracks`, `logic://app
 
 ## Honest contract
 Every write returns `state: confirmed | uncertain | failed`. Only **confirmed** means the change was read back from Logic.
+`uncertain` with `accepted: true` means the request left this process and nothing proved its effect -- raw MIDI,
+MCU strip buttons, menu presses, a quit request. Read the state before retrying; never retry through another channel.
 Destructive track ops require an explicit index/name and a confirmed selection, or they refuse.
+
+Track targets are exact: a name that matches two tracks is refused, an index and a name that disagree are refused,
+and writes never substring-match. MCU LEDs that Logic has not sent are **unknown**, not off; a write is confirmed by
+evidence that arrived after it, never by a cached value. Writes run one at a time under a guard shared by every
+logic-pro-mcp process of the same user (advisory: it cannot stop a human or the gesture daemon). Offline edits of the
+original project file proceed only when it is proven that Logic does not have it open.
 
 The MCU surface only ever addresses the eight tracks Logic is currently showing on it — its bank buttons do
 nothing here. Which track sits on which strip is **read back from the surface's own display**, never assumed,
@@ -69,7 +88,9 @@ logic_mcp/
   server.py          MCPServer, tools, resources
   doctor.py          channel health + fix plan
   target.py          find Logic (desktop / Creator Studio), pid, version
-  result.py          confirmed / uncertain / failed envelope
+  result.py          confirmed / uncertain / failed envelope (+ accepted: sent, unverified)
+  policy.py          argument validation, mutation guard (in-process RLock + per-user flock)
+  local.py           the eight-tool compact profile for small local models
   channels/
     midi.py          rtmidi + CoreMIDI: Logic Virtual In, MCU handshake/LEDs/LCD/faders/banks, MMC
     ax.py            generic Accessibility helpers (walk, find, press, set, dump)
@@ -261,6 +282,12 @@ The suite covers the parts that decide what is true: the result envelope, the OS
 measured address quirks, the ProjectData binary layout (against a synthetic file built independently to the
 documented format), dialogue detection, cue WAVs including UTF-8 Tamil labels, loudness maths, recipe
 resolution and which cloud account uploads go to.
+
+Target safety, MCU freshness, honest outcomes, the offline fail-closed gate, the policy layer and the local profile
+are tested against a fake Accessibility tree (`tests/fakeax.py`) and replayed MIDI callbacks: duplicate and
+contradicting targets, stale or absent LEDs, unrelated MIDI traffic, non-finite arguments, forbidden tool names,
+project switches mid-write, concurrent writes, locked screens and dialogs, and track names that read like
+instructions.
 
 Default pytest runs exclude `live` tests; `-m live` explicitly overrides that filter. macOS CI uses
 frozen dependencies and runs only the non-live suite, without launching Logic or the server. Transport
