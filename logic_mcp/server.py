@@ -2,16 +2,36 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
+from functools import wraps
 import time
 from typing import Any, Literal
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ResourceError
 
-from . import (audio as audiolib, doctor, export, leveling, markers, plugins as plugs, projectdata, target,
-               upload as uploader)
-from .channels import applescript, ax, ax_logic, dialogs, keys, osc, palette, screen
-from .channels.midi import MCU_BUTTONS, MMC, bus
+INSPECT_ONLY = os.environ.get("LOGIC_MCP_INSPECT_ONLY") == "1"
+if not INSPECT_ONLY and sys.platform != "darwin":
+    raise RuntimeError("Logic Pro control requires macOS. Set LOGIC_MCP_INSPECT_ONLY=1 for schema inspection only; all operations will be disabled.")
+
+if not INSPECT_ONLY:
+    from . import (audio as audiolib, doctor, export, leveling, markers, plugins as plugs, projectdata, target,
+                   upload as uploader)
+    from .channels import applescript, ax, ax_logic, dialogs, keys, osc, palette, screen
+    from .channels.midi import MCU_BUTTONS, MMC, bus
 from .result import fail, ok, unsure
+
+
+def _runtime_required(fn):
+    """Preserve real endpoint schemas while refusing every operation in inspection mode."""
+    @wraps(fn)
+    def guarded(*args, **kwargs):
+        if INSPECT_ONLY:
+            raise ResourceError("Inspection-only mode: no Logic Pro connection; all tool calls and resource reads are disabled. Run locally on macOS without LOGIC_MCP_INSPECT_ONLY to control Logic Pro.")
+        return fn(*args, **kwargs)
+    return guarded
+
 
 INSTRUCTIONS = """Drive Logic Pro on this Mac. Rules:
 - Call logic_system(action='health') first. Only channels listed in `ready` are trustworthy.
@@ -19,6 +39,9 @@ INSTRUCTIONS = """Drive Logic Pro on this Mac. Rules:
 - Read logic://transport before changing transport. Never assume state.
 - If a channel is blocked, the response carries `fix`. Report it to the human instead of retrying.
 """
+
+if INSPECT_ONLY:
+    INSTRUCTIONS = "SCHEMA INSPECTION ONLY. This instance has no Logic Pro connection. All tool calls and resource reads fail explicitly. Actual DAW control requires a local Mac with Logic Pro.\n" + INSTRUCTIONS
 
 mcp = MCPServer("logic-mcp", instructions=INSTRUCTIONS)
 
@@ -82,6 +105,7 @@ def _playing() -> bool | None:
 
 # --------------------------------------------------------------------------- tools
 @mcp.tool()
+@_runtime_required
 def logic_system(
     action: Literal["health", "permissions", "midi_ports", "ax_dump", "ax_find", "key_map", "app", "menu", "press_menu", "windows"],
     depth: int = 5,
@@ -154,6 +178,7 @@ def _key(command: str) -> bool:
 
 
 @mcp.tool()
+@_runtime_required
 def logic_transport(
     action: Literal["play", "stop", "record", "go_to_beginning", "rewind", "fast_forward", "toggle_cycle", "toggle_count_in",
                     "toggle_metronome", "set_tempo", "goto", "state"],
@@ -258,6 +283,7 @@ def logic_transport(
 
 
 @mcp.tool()
+@_runtime_required
 def logic_tracks(
     action: Literal["list", "select", "mute", "solo", "arm", "monitor", "set_volume", "set_pan", "set_color", "get_color",
                     "create_instrument", "create_audio", "create_drummer", "create_external_midi", "delete", "rename", "palette"],
@@ -494,6 +520,7 @@ def logic_tracks(
 
 
 @mcp.tool()
+@_runtime_required
 def logic_midi(
     action: Literal["note", "chord", "sequence", "cc", "program", "pitch_bend", "aftertouch", "sysex", "mmc", "ports", "mcu_button", "mcu_strip", "mcu_fader"],
     note: int | None = None,
@@ -545,6 +572,7 @@ def logic_midi(
 
 
 @mcp.tool()
+@_runtime_required
 def logic_project(
     action: Literal["launch", "activate", "quit", "open", "save", "save_as", "new", "close", "undo", "redo", "info"],
     path: str | None = None,
@@ -576,6 +604,7 @@ def logic_project(
 
 
 @mcp.tool()
+@_runtime_required
 def logic_offline(
     action: Literal["list", "rename"],
     project: str,
@@ -649,6 +678,7 @@ def logic_offline(
 
 
 @mcp.tool()
+@_runtime_required
 def logic_keys(chord: str | None = None, command: str | None = None) -> dict:
     """Escape hatch: send any key chord ('cmd+shift+n') or a named Logic command from key_map to Logic."""
     a = _app()
@@ -668,6 +698,7 @@ def logic_keys(chord: str | None = None, command: str | None = None) -> dict:
 
 
 @mcp.tool()
+@_runtime_required
 def logic_export(
     action: Literal["bounce", "stems", "options", "dismiss"],
     directory: str | None = None,
@@ -758,6 +789,7 @@ def logic_export(
 
 
 @mcp.tool()
+@_runtime_required
 def logic_deliver(
     action: Literal["upload", "bounce_and_upload", "remotes", "list", "setup"],
     directory: str | None = None,
@@ -815,6 +847,7 @@ def logic_deliver(
 
 
 @mcp.tool()
+@_runtime_required
 def logic_plugins(
     action: Literal["insert", "describe", "get", "set", "switch", "preset", "windows", "close"],
     track: int | None = None,
@@ -932,6 +965,7 @@ def logic_plugins(
 
 
 @mcp.tool()
+@_runtime_required
 def logic_level(
     action: Literal["analyse", "plan", "apply", "export_and_plan"],
     paths: list[str] | None = None,
@@ -1049,28 +1083,33 @@ def logic_level(
 
 # --------------------------------------------------------------------------- resources
 @mcp.resource("logic://health")
+@_runtime_required
 def res_health() -> str:
     return json.dumps(doctor.run(probe_mcu=False))
 
 
 @mcp.resource("logic://transport")
+@_runtime_required
 def res_transport() -> str:
     return json.dumps(transport_state())
 
 
 @mcp.resource("logic://tracks")
+@_runtime_required
 def res_tracks() -> str:
     w = _win()
     return json.dumps({"tracks": ax_logic.list_tracks(w)} if w is not None else {"error": "Accessibility not trusted or no window"})
 
 
 @mcp.resource("logic://app")
+@_runtime_required
 def res_app() -> str:
     a = _app()
     return json.dumps(a.to_dict() if a else None)
 
 
 @mcp.resource("logic://markers")
+@_runtime_required
 def res_markers() -> str:
     """The project's marker list. Marker text lives in AXDescription, not AXValue — reading values gives
     a row per marker with an empty name."""
@@ -1086,6 +1125,7 @@ def res_markers() -> str:
 
 
 @mcp.resource("logic://mixer")
+@_runtime_required
 def res_mixer() -> str:
     """Mixer state for the 8 strips the OSC surface is showing, plus the selected channel strip.
 
@@ -1114,6 +1154,7 @@ def res_mixer() -> str:
 
 
 @mcp.resource("logic://regions")
+@_runtime_required
 def res_regions() -> str:
     """Regions on the arrange canvas. Offscreen regions are listed with visible=false and no geometry
     rather than omitted, so 'none here' and 'cannot see from here' stay distinguishable."""
@@ -1219,6 +1260,7 @@ def _osc_ready(timeout: float = 10.0) -> tuple[osc.LogicPad | None, dict | None]
 
 
 @mcp.tool()
+@_runtime_required
 def logic_osc(
     action: Literal["connect", "status", "transport", "select", "mute", "solo", "volume", "pan",
                     "master_volume", "bank", "send", "feedback", "disconnect",
