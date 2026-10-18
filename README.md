@@ -25,8 +25,29 @@ handshake, and Logic installs the surface itself. Endpoints carry fixed CoreMIDI
 Requires a local Mac with Logic Pro. Linux containers, including Glama's hosted
 Docker build environment, cannot run the CoreMIDI, Accessibility, and PyObjC
 integrations. The Glama directory listing is for discovery; it is not a hosted
-Logic Pro service. A failed Linux build does not validate or invalidate operation
-on macOS. Use the local doctor command below to check your Mac's setup.
+Logic Pro service. Use the local doctor command below to check your Mac's setup.
+
+### Directory inspection (Linux/CI)
+
+`LOGIC_MCP_INSPECT_ONLY=1 uv run logic-pro-mcp` exposes the same tool and resource
+schemas without importing any DAW backends. **Every tool call and resource read
+returns an explicit error** in this mode, including health checks. It does not
+simulate a connected Mac or provide remote control. Never enable this variable
+in your normal Logic Pro client configuration.
+
+For Glama, use Python 3.12, build step `uv sync --frozen --no-dev`, and command:
+
+```json
+["mcp-proxy", "--", "env", "LOGIC_MCP_INSPECT_ONLY=1", "uv", "run", "--no-sync", "logic-pro-mcp"]
+```
+
+The explicit environment setting in the command keeps hosted instances in
+inspection mode. `Dockerfile.inspection` provides an equivalent local test image.
+Run `uv run python scripts/check_inspection.py` to verify real stdio discovery and
+that all 12 tools and 7 resources refuse execution. This is schema validation,
+not live Logic Pro validation.
+
+### Local installation
 
 ```bash
 cd "/path/to/logic-pro-mcp"

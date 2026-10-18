@@ -1,6 +1,6 @@
 [project]
 name = "logic-pro-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "Logic Pro MCP: an MCP server that gives AI agents real control of Logic Pro (desktop + Creator Studio) on macOS, with readback"
 readme = "README.md"
 authors = [
@@ -23,11 +23,11 @@ dependencies = [
     "mcp[cli]>=2.1.1",
     "mido>=1.3.3",
     "numpy>=2.5.2",
-    "pyobjc-framework-applicationservices>=12.2.2",
-    "pyobjc-framework-cocoa>=12.2.2",
-    "pyobjc-framework-coremidi>=12.2.2",
-    "pyobjc-framework-quartz>=12.2.2",
-    "python-rtmidi>=1.5.8",
+    "pyobjc-framework-applicationservices>=12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-cocoa>=12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-coremidi>=12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-quartz>=12.2.2; sys_platform == 'darwin'",
+    "python-rtmidi>=1.5.8; sys_platform == 'darwin'",
     "scipy>=1.18.1",
     "soundfile>=0.14.0",
 ]
