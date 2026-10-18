@@ -45,30 +45,59 @@ MCU_FADER_0DB = 12443  # Logic echoes this 14-bit value at +0.0 dB
 
 @dataclass
 class McuState:
+    """What Logic has told the surface, with a receipt time per field.
+
+    A field that was never received is UNKNOWN (None), not False: a fresh handshake says nothing about
+    whether Logic is playing until the play LED arrives, and a surface that has only echoed LCD text has
+    still not reported a single LED. The first version defaulted unseen LEDs to False, which turned
+    "no evidence" into "stopped" and let a write be confirmed against nothing.
+
+    `seen_at` keeps the per-field receipt times so a caller can demand evidence that arrived AFTER its
+    own write (`observed_after`) instead of trusting whatever was cached before it, and can refuse a
+    value older than it is willing to act on (`led(max_age=)`). `last_rx` remains "any traffic at all":
+    it says the surface is alive, never that a field is current -- timecode ticks keep it fresh while
+    the play LED stays exactly as old as it is.
+    """
     leds: dict[str, bool] = field(default_factory=dict)
     handshake: bool = False
     handshake_at: float = 0.0
-
-    def ready(self, settle: float = 1.5) -> bool:
-        """Logic ignores MCU buttons for ~1-2s after the handshake."""
-        return self.handshake and (time.time() - self.handshake_at) >= settle
     lcd: str = ""
     timecode: str = ""
     faders: dict[int, int] = field(default_factory=dict)
     strips: dict[int, dict] = field(default_factory=dict)
+    seen_at: dict[str, float] = field(default_factory=dict)
     last_rx: float = 0.0
     rx_count: int = 0
+    malformed: int = 0
+
+    def ready(self, settle: float = 1.5) -> bool:
+        """Logic ignores MCU buttons for ~1-2s after the handshake."""
+        return self.handshake and (time.time() - self.handshake_at) >= settle
+
+    def led(self, name: str, max_age: float | None = None) -> bool | None:
+        """The LED's last value; None when it was never received or is older than `max_age` seconds."""
+        if name not in self.leds:
+            return None
+        if max_age is not None and (time.time() - self.seen_at.get(f"led:{name}", 0.0)) > max_age:
+            return None
+        return self.leds[name]
+
+    def observed_after(self, key: str, t0: float) -> bool:
+        """Whether field `key` ('led:play', 'fader:3', 'strip:2:mute', 'lcd') arrived after time t0."""
+        return self.seen_at.get(key, 0.0) > t0
 
     @property
-    def playing(self) -> bool: return self.leds.get("play", False)
+    def playing(self) -> bool | None: return self.led("play")
     @property
-    def recording(self) -> bool: return self.leds.get("record", False)
+    def recording(self) -> bool | None: return self.led("record")
 
     def to_dict(self) -> dict:
-        return {"handshake": self.handshake, "playing": self.playing, "recording": self.recording, "cycle": self.leds.get("cycle"),
-                "click": self.leds.get("click"), "lcd": self.lcd.strip(), "timecode": self.timecode,
-                "faders": self.faders, "strips": self.strips, "rx_count": self.rx_count,
-                "age_s": round(time.time() - self.last_rx, 2) if self.last_rx else None}
+        now = time.time()
+        return {"handshake": self.handshake, "playing": self.playing, "recording": self.recording, "cycle": self.led("cycle"),
+                "click": self.led("click"), "lcd": self.lcd.strip(), "timecode": self.timecode,
+                "faders": self.faders, "strips": self.strips, "rx_count": self.rx_count, "malformed": self.malformed,
+                "age_s": round(now - self.last_rx, 2) if self.last_rx else None,
+                "led_age_s": {k[4:]: round(now - t, 2) for k, t in self.seen_at.items() if k.startswith("led:")}}
 
 
 class MidiBus:
@@ -271,42 +300,73 @@ class MidiBus:
         self._mcu_out.send_message([0xB0, 0x10 + strip, d])
         return True
 
+    def _reply(self, data: list[int]) -> None:
+        """Answer Logic's handshake; a no-op before the port exists (replayed callbacks in tests)."""
+        if self._mcu_out is not None:
+            self._mcu_out.send_message(data)
+
     def _on_mcu(self, event, _data=None) -> None:
-        msg, _dt = event
+        # rtmidi hands the callback (message, delta_time). Anything else -- a bare list, an empty
+        # message, a truncated SysEx -- is counted and dropped. The callback runs on CoreMIDI's thread,
+        # where an uncaught IndexError would kill the listener silently and freeze every LED forever.
+        try:
+            msg, _dt = event
+            msg = [int(b) for b in msg]
+        except (TypeError, ValueError):
+            with self._lock:
+                self.mcu.malformed += 1
+            return
         with self._lock:
-            self.mcu.last_rx = time.time(); self.mcu.rx_count += 1
+            if not msg:
+                self.mcu.malformed += 1
+                return
+            now = time.time()
+            self.mcu.last_rx = now; self.mcu.rx_count += 1
             self.rx_log.append([hex(b) for b in msg]); del self.rx_log[:-50]
-            st = msg[0] & 0xF0
-            if st == 0x90 and len(msg) >= 3:
-                n, v = msg[1], msg[2]
-                if n in MCU_LED_NAMES:
-                    self.mcu.leds[MCU_LED_NAMES[n]] = v > 0
-                elif n < 0x20:  # per-strip LEDs: rec/solo/mute/select
-                    kind = ("rec", "solo", "mute", "select")[n // 8]
-                    self.mcu.strips.setdefault(n % 8, {})[kind] = v > 0
-            elif st == 0xE0 and len(msg) >= 3:
-                self.mcu.faders[msg[0] & 0x0F] = msg[1] | (msg[2] << 7)
-            elif msg[0] == 0xF0 and len(msg) >= 7 and msg[1:4] == MCU_HDR:
-                model, cmd = msg[4], msg[5]
-                if cmd == 0x00 and model == MCU_MODEL:      # device query -> host connection query
-                    self._mcu_out.send_message([0xF0, *MCU_HDR, MCU_MODEL, 0x01, *MCU_SERIAL, *MCU_CHALLENGE, 0xF7])
-                elif cmd == 0x02 and model == MCU_MODEL:    # host connection reply -> confirmation
-                    self._mcu_out.send_message([0xF0, *MCU_HDR, MCU_MODEL, 0x03, *MCU_SERIAL, 0xF7])
-                    if not self.mcu.handshake:
-                        self.mcu.handshake, self.mcu.handshake_at = True, time.time()
-                elif cmd == 0x13 and model == MCU_MODEL:    # version request
-                    self._mcu_out.send_message([0xF0, *MCU_HDR, MCU_MODEL, 0x14, *MCU_VERSION, 0xF7])
-                elif cmd == 0x12 and len(msg) > 7:          # LCD text
-                    if not self.mcu.handshake:
-                        self.mcu.handshake, self.mcu.handshake_at = True, time.time()
-                    pos = msg[6]
-                    for i, b in enumerate(msg[7:-1]):
-                        if 0 <= pos + i < 112:
-                            self._lcd[pos + i] = chr(b) if 32 <= b < 127 else " "
-                    self.mcu.lcd = "".join(self._lcd[:56]) + "\n" + "".join(self._lcd[56:])
-            elif st == 0xB0 and len(msg) >= 3 and 0x40 <= msg[1] <= 0x4B:
-                # 7-seg timecode display: CC 0x40..0x4B, value = char
-                pass
+            try:
+                self._parse_mcu(msg, now)
+            except (IndexError, TypeError, ValueError):
+                self.mcu.malformed += 1
+
+    def _parse_mcu(self, msg: list[int], now: float) -> None:
+        st = msg[0] & 0xF0
+        if st == 0x90 and len(msg) >= 3:
+            n, v = msg[1], msg[2]
+            if n in MCU_LED_NAMES:
+                name = MCU_LED_NAMES[n]
+                self.mcu.leds[name] = v > 0
+                self.mcu.seen_at[f"led:{name}"] = now
+            elif n < 0x20:  # per-strip LEDs: rec/solo/mute/select
+                kind = ("rec", "solo", "mute", "select")[n // 8]
+                self.mcu.strips.setdefault(n % 8, {})[kind] = v > 0
+                self.mcu.seen_at[f"strip:{n % 8}:{kind}"] = now
+        elif st == 0xE0 and len(msg) >= 3:
+            strip = msg[0] & 0x0F
+            self.mcu.faders[strip] = msg[1] | (msg[2] << 7)
+            self.mcu.seen_at[f"fader:{strip}"] = now
+        elif msg[0] == 0xF0 and len(msg) >= 7 and msg[1:4] == MCU_HDR:
+            model, cmd = msg[4], msg[5]
+            if cmd == 0x00 and model == MCU_MODEL:      # device query -> host connection query
+                self._reply([0xF0, *MCU_HDR, MCU_MODEL, 0x01, *MCU_SERIAL, *MCU_CHALLENGE, 0xF7])
+            elif cmd == 0x02 and model == MCU_MODEL:    # host connection reply -> confirmation
+                self._reply([0xF0, *MCU_HDR, MCU_MODEL, 0x03, *MCU_SERIAL, 0xF7])
+                if not self.mcu.handshake:
+                    self.mcu.handshake, self.mcu.handshake_at = True, now
+            elif cmd == 0x13 and model == MCU_MODEL:    # version request
+                self._reply([0xF0, *MCU_HDR, MCU_MODEL, 0x14, *MCU_VERSION, 0xF7])
+            elif cmd == 0x12 and len(msg) > 7:          # LCD text
+                if not self.mcu.handshake:
+                    self.mcu.handshake, self.mcu.handshake_at = True, now
+                pos = msg[6]
+                for i, b in enumerate(msg[7:-1]):
+                    if 0 <= pos + i < 112:
+                        self._lcd[pos + i] = chr(b) if 32 <= b < 127 else " "
+                self.mcu.lcd = "".join(self._lcd[:56]) + "\n" + "".join(self._lcd[56:])
+                self.mcu.seen_at["lcd"] = now
+        elif st == 0xB0 and len(msg) >= 3 and 0x40 <= msg[1] <= 0x4B:
+            # 7-seg timecode display: CC 0x40..0x4B, value = char. Traffic, not state: it must not
+            # make any LED look fresh.
+            self.mcu.seen_at["timecode"] = now
 
     def close(self) -> None:
         for p in (self._out, self._mcu_out, self._mcu_in):

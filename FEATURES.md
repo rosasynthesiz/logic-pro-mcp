@@ -7,7 +7,7 @@ Status: ✅ confirmed with readback · 🟡 works, readback partial/uncertain ·
 | Area | Feature | Channel | Status |
 |---|---|---|---|
 | system | health/doctor with fix plan, permissions, midi_ports, key_map, app, windows | – | ✅ |
-| system | ax_dump / ax_find / menu / press_menu (agent can explore Logic's UI + menus) | AX | ✅ |
+| system | ax_dump / ax_find / menu / press_menu (agent can explore Logic's UI + menus) | AX | ✅ reads · 🟡 press_menu is accepted, its effect is not read back |
 | transport | play, record | AX press → MCU LED readback | ✅ |
 | transport | stop | MCU → KEY fallback | ✅ |
 | transport | go_to_beginning | AX button | ✅ |
@@ -29,10 +29,10 @@ Status: ✅ confirmed with readback · 🟡 works, readback partial/uncertain ·
 | tracks | set_color / get_color (96-swatch palette by index, name, or hex) | MENU Track > Assign Track Color… + real HID mouse click on the swatch; readback = white selection ring via screen capture; guard = Logic's own fresh "Delete Track" count | ✅ |
 | tracks | list colors=true (header icon tint → nearest hue) | screen capture of the icon band | 🟡 approximate, None when covered |
 | system | session check (locked screen / sleeping display) in doctor + tool errors | Quartz | ✅ |
-| midi | note, chord, sequence, cc, program, pitch_bend, aftertouch, sysex | MIDI | ✅ sent |
+| midi | note, chord, sequence, cc, program, pitch_bend, aftertouch, sysex | MIDI | 🟡 accepted: sent, nothing reads it back |
 | midi | mmc play/stop/record/locate | MIDI | 🟡 needs "Listen to MMC" in Logic |
-| midi | mcu_button, mcu_strip, mcu_fader, bank switching | MCU | ✅ |
-| project | launch, activate, quit, info | AS | ✅ |
+| midi | mcu_button, mcu_strip, mcu_fader, bank switching | MCU | ✅ mcu_button when that button's LED echoes after the press · 🟡 strip/fader accepted |
+| project | launch, activate, quit, info | AS | ✅ launch/quit confirmed by the process appearing/exiting, else accepted |
 | project | open | AS | 🟡 |
 | project | save, save_as, new, close, undo, redo | KEY | 🟡 dialog may open |
 | readback | logic://health, logic://transport, logic://tracks, logic://app | – | ✅ |
