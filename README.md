@@ -22,6 +22,12 @@ Zero manual setup in Logic: Logic auto-scans new MIDI ports with Mackie Control 
 handshake, and Logic installs the surface itself. Endpoints carry fixed CoreMIDI unique IDs so the binding survives restarts.
 
 ## Install
+Requires a local Mac with Logic Pro. Linux containers, including Glama's hosted
+Docker build environment, cannot run the CoreMIDI, Accessibility, and PyObjC
+integrations. The Glama directory listing is for discovery; it is not a hosted
+Logic Pro service. A failed Linux build does not validate or invalidate operation
+on macOS. Use the local doctor command below to check your Mac's setup.
+
 ```bash
 cd "/path/to/logic-pro-mcp"
 uv sync
