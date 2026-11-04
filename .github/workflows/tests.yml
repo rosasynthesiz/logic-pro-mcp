@@ -19,3 +19,5 @@ jobs:
         run: uv sync --frozen --group dev
       - name: Run non-live tests
         run: uv run --frozen pytest -m 'not live'
+      - name: Replay local-profile oracle (fake adapters only)
+        run: uv run --frozen python scripts/local_eval.py --oracle --reps 3 --no-report --out /tmp/logic-local-oracle
