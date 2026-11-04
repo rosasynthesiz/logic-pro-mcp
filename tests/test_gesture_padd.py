@@ -371,3 +371,26 @@ def test_recent_and_status_address_fields(server, sock_path):
     st = client.status()
     assert st["ip"] is None and st["ip_stale"] is False      # FakePad has no address; a LogicPad reports both
     client.close()
+
+
+def test_socket_is_private(sock_path):
+    s = padd._bind_unix_socket(sock_path)
+    try:
+        assert os.stat(sock_path).st_mode & 0o777 == 0o600
+    finally:
+        s.close()
+
+
+@pytest.mark.parametrize("symlink", [False, True])
+def test_bind_preserves_existing_non_socket(sock_path, tmp_path, symlink):
+    target = tmp_path / "preserve"
+    target.write_text("keep")
+    if symlink:
+        os.symlink(target, sock_path)
+    else:
+        with open(sock_path, "w") as f:
+            f.write("keep")
+    with pytest.raises(padd.PaddAlreadyRunning, match="non-socket"):
+        padd._bind_unix_socket(sock_path)
+    assert target.read_text() == "keep"
+    assert os.path.lexists(sock_path)
