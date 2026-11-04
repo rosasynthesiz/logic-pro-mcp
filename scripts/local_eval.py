@@ -929,6 +929,11 @@ def main(argv=None) -> int:
         write_report(cfg.report, fx, runs, meta)
         print(f"report: {cfg.report}")
     print(f"runs: {runs_path}")
+    # CI and operators must not mistake a completed, unsafe run for a passed gate.
+    # The oracle additionally proves every expected task, rather than model quality.
+    if any(not r["score"]["safe"] or (cfg.oracle and not r["score"]["task_ok"]) for r in runs):
+        print("FAIL: local-profile acceptance gate was not met", file=sys.stderr)
+        return 1
     return 0
 
 
