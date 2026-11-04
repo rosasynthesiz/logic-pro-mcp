@@ -314,7 +314,7 @@ def test_no_resources_or_other_methods_are_served():
 
 
 @pytest.mark.parametrize("tool_name,first_args,second_args", [
-    ("set_gain", {"gain_db": -12}, {"gain_db": 12}),
+    ("set_gain", {"gain_db": -12}, {"gain_db": 6}),
     ("set_mute", {"muted": True}, {"muted": False}),
 ])
 def test_concurrent_checks_use_post_write_state(monkeypatch, tmp_path, tool_name, first_args, second_args):
