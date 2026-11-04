@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
 
 import pytest
 from mcp import Client
@@ -74,7 +75,11 @@ def _serve(scenario: dict, calls: list[tuple[str, dict]]):
                 r = await c.call_tool(name, args)
                 out.append(local_eval._result_body(r))
         return tools, out
-    return asyncio.run(go())
+    # The real guard now refuses missing parents. Use an isolated directory,
+    # independent of pytest's cache creation timing and other test processes.
+    with tempfile.TemporaryDirectory(prefix="logic-eval-") as lock_dir:
+        params.env["LOGIC_MCP_LOCK"] = os.path.join(lock_dir, "mutation.lock")
+        return asyncio.run(go())
 
 
 def test_fake_server_serves_the_eight_and_confirms_writes():
