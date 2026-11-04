@@ -420,20 +420,76 @@ def click_select_track(win, index: int, pid: int | None = None) -> bool:
     return selected_indices(win) == [index]
 
 
-def find_track(win, index: int | None = None, name: str | None = None, fuzzy: bool = True):
+class TargetError(ValueError):
+    """A track target that must not be acted on: malformed, ambiguous or self-contradictory."""
+
+
+def check_track_selectors(index, name) -> None:
+    """Shape checks before any lookup. `True` is not index 1, "" is not a name, 0 is not a row."""
+    if index is None and name is None:
+        raise TargetError("need index or name")
+    if index is not None and (isinstance(index, bool) or not isinstance(index, int) or index < 1):
+        raise TargetError(f"index must be a positive integer (1 = top track), got {index!r}")
+    if name is not None and (not isinstance(name, str) or not name.strip()):
+        raise TargetError("name must be a non-blank string")
+
+
+def resolve_track(win, index: int | None = None, name: str | None = None, fuzzy: bool = False):
+    """The ONE track header that `index` and/or `name` denote, or raise TargetError.
+
+    * index alone: that row.
+    * name alone: exactly one track with that exact name (case-insensitive, outer spaces ignored).
+      Two tracks called "Vocal" are an error, never "the first one" -- the first version returned the
+      first match, and a mute meant for the second Vocal landed on the first.
+    * both: the row at `index` must carry `name`. A mismatch is a contradiction (the list the caller
+      copied from is stale, or the caller guessed), not a tie-break in favour of either selector.
+      This corroboration is what a mutation should demand.
+    * fuzzy: only when asked, only for a NAME-ONLY lookup that found no exact match, and only if the
+      substring matches exactly one track. Mutations never ask.
+    """
+    check_track_selectors(index, name)
+    want = name.strip().lower() if name is not None else None
+    rows: list[tuple[int, str, object]] = []
     for it in track_items(win):
         m = TRACK_RE.match(str(ax.desc(it) or ""))
-        if not m:
-            continue
-        if index is not None and int(m.group(1)) == index:
-            return it
-        if name is not None and m.group(2).lower() == name.lower():
-            return it
-    if name is not None and fuzzy:  # substring fallback only when it is unambiguous
-        hits = [it for it in track_items(win) if name.lower() in str(ax.desc(it) or "").lower()]
-        if len(hits) == 1:
-            return hits[0]
-    return None
+        if m:
+            rows.append((int(m.group(1)), m.group(2), it))
+    if index is not None:
+        hits = [r for r in rows if r[0] == index]
+        if not hits:
+            raise TargetError(f"no track at index {index}")
+        _, found, it = hits[0]                        # Logic can publish one header twice: same row
+        if want is not None and found.strip().lower() != want:
+            raise TargetError(f"track {index} is named {found!r}, not {name!r}; list the tracks again")
+        return it
+    exact = [r for r in rows if r[1].strip().lower() == want]
+    if len(exact) == 1:
+        return exact[0][2]
+    if len(exact) > 1:
+        raise TargetError(f"{len(exact)} tracks are named {name!r} (indexes {[r[0] for r in exact]}); use index")
+    if fuzzy:
+        sub = [r for r in rows if want in r[1].lower()]
+        if len(sub) == 1:
+            return sub[0][2]
+        if len(sub) > 1:
+            raise TargetError(f"{name!r} matches {len(sub)} tracks {[r[1] for r in sub]}; use the exact name or index")
+    raise TargetError(f"no track named {name!r}")
+
+
+def find_track(win, index: int | None = None, name: str | None = None, fuzzy: bool = True):
+    """resolve_track without the reason: None for anything that is not exactly one unambiguous track."""
+    try:
+        return resolve_track(win, index, name, fuzzy=fuzzy)
+    except TargetError:
+        return None
+
+
+def project_identity(win) -> dict:
+    """Which document the window shows: the path Logic reports plus the title.
+
+    Captured before a write and compared after it, so a project switched under the call is reported
+    instead of silently editing whichever project is now in front."""
+    return {"document": str(ax.attr(win, "AXDocument") or ""), "title": str(ax.title(win) or "")}
 
 
 def selection_count(root) -> int | None:

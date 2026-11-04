@@ -47,6 +47,7 @@ voice = [
 [project.scripts]
 logic-pro-mcp = "logic_mcp.server:main"
 logic-pro-mcp-doctor = "logic_mcp.doctor:main"
+logic-pro-mcp-local = "logic_mcp.local:main"     # compact 8-tool profile for small local models
 logic-mcp = "logic_mcp.server:main"               # aliases: existing `claude mcp add` entries keep working
 logic-mcp-doctor = "logic_mcp.doctor:main"
 logicpadd = "logic_mcp.gesture.padd:main"
@@ -61,7 +62,7 @@ dev = ["pytest>=8.4.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --strict-markers"
+addopts = "-q --strict-markers -m 'not live'"
 markers = ["live: needs Logic Pro running (excluded from the default run)"]
 
 [build-system]

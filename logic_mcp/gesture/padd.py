@@ -17,10 +17,12 @@ each on their own thread. Every response carries {"ok": bool, ...}; a failure ca
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 import signal
 import socket
+import stat
 import sys
 import threading
 import time
@@ -36,22 +38,17 @@ class PaddAlreadyRunning(Exception):
 
 # --------------------------------------------------------------------------- socket setup
 def _ping_existing(path: str, timeout: float = 0.5) -> bool:
-    """True if a live logicpadd answers `ping` at `path`. False for anything else -- refused, timed
-    out, garbage back -- which is exactly the "stale socket file" case that is safe to unlink."""
+    """Conservatively report occupied unless connect proves there is no listener.
+
+    A slow, malformed or nonresponsive peer may still own the live Logic surface.
+    """
     try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(timeout)
-        s.connect(path)
-        s.sendall((P.jsonl({"op": "ping"}) + "\n").encode("utf-8"))
-        f = s.makefile("rb")
-        line = f.readline()
-        s.close()
-        if not line:
-            return False
-        resp = json.loads(line.decode("utf-8"))
-        return bool(resp.get("ok")) and resp.get("pong") is True
-    except (OSError, ValueError):
-        return False
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            s.connect(path)
+            return True
+    except OSError as exc:
+        return exc.errno not in (errno.ECONNREFUSED, errno.ENOENT)
 
 
 def _bind_unix_socket(path: str) -> socket.socket:
@@ -59,12 +56,19 @@ def _bind_unix_socket(path: str) -> socket.socket:
 
     Something DOES answer -> raise rather than steal the port from a running daemon.
     """
-    if os.path.exists(path):
+    if os.path.lexists(path):
+        info = os.lstat(path)
+        if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid():
+            raise PaddAlreadyRunning(f"refusing to replace a non-socket or foreign path: {path}")
         if _ping_existing(path):
             raise PaddAlreadyRunning(f"a logicpadd is already listening on {path}; not starting a second one")
+        current = os.lstat(path)
+        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+            raise PaddAlreadyRunning(f"socket path changed during startup: {path}")
         os.unlink(path)                    # stale file: the process that made it is gone
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.bind(path)
+    os.chmod(path, 0o600)
     return sock
 
 
@@ -81,6 +85,7 @@ class PaddServer:
         self.socket_path = socket_path
         self._lock = threading.Lock()
         self._sock: socket.socket | None = None
+        self._socket_identity: tuple[int, int] | None = None
         self._stop = threading.Event()
         self._accept_thread: threading.Thread | None = None
         self._conns_lock = threading.Lock()
@@ -89,6 +94,8 @@ class PaddServer:
     # ---- lifecycle
     def start(self) -> None:
         self._sock = _bind_unix_socket(self.socket_path)
+        info = os.lstat(self.socket_path)
+        self._socket_identity = (info.st_dev, info.st_ino)
         self._sock.listen(16)
         self._sock.settimeout(0.5)
         self._accept_thread = threading.Thread(target=self._accept_loop, daemon=True)
@@ -123,7 +130,8 @@ class PaddServer:
         except OSError:
             pass
         try:
-            if os.path.exists(self.socket_path):
+            info = os.lstat(self.socket_path)
+            if stat.S_ISSOCK(info.st_mode) and (info.st_dev, info.st_ino) == self._socket_identity:
                 os.unlink(self.socket_path)
         except OSError:
             pass

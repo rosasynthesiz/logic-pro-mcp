@@ -6,3 +6,4 @@ dist/
 .pytest_cache/
 hand-samples.jsonl
 Sessions/
+docs/local-model-eval/*.log
