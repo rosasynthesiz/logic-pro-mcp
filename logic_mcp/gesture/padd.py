@@ -21,6 +21,7 @@ import json
 import os
 import signal
 import socket
+import stat
 import sys
 import threading
 import time
@@ -59,12 +60,16 @@ def _bind_unix_socket(path: str) -> socket.socket:
 
     Something DOES answer -> raise rather than steal the port from a running daemon.
     """
-    if os.path.exists(path):
+    if os.path.lexists(path):
+        info = os.lstat(path)
+        if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid():
+            raise PaddAlreadyRunning(f"refusing to replace a non-socket or foreign path: {path}")
         if _ping_existing(path):
             raise PaddAlreadyRunning(f"a logicpadd is already listening on {path}; not starting a second one")
         os.unlink(path)                    # stale file: the process that made it is gone
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.bind(path)
+    os.chmod(path, 0o600)
     return sock
 
 

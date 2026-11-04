@@ -19,10 +19,12 @@ What the guard can and cannot promise
 from __future__ import annotations
 
 import contextlib
+import errno
 import fcntl
 import functools
 import math
 import os
+import stat
 import tempfile
 import threading
 import time
@@ -67,15 +69,22 @@ class MutationGuard:
 
     def _flock(self, deadline: float, label: str) -> None:
         try:
-            fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT, 0o600)
-        except OSError:
+            fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+        except OSError as exc:
             self._fd = None
-            return                        # no lock file possible: in-process serialisation only
+            raise Busy(f"cannot safely open mutation lock {self.lock_path}: {exc}") from exc
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
+            os.close(fd)
+            raise Busy(f"mutation lock must be a private regular file owned by this user: {self.lock_path}")
         while True:
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
-            except OSError:
+            except OSError as exc:
+                if exc.errno not in (errno.EACCES, errno.EAGAIN):
+                    os.close(fd)
+                    raise Busy(f"cannot lock {self.lock_path}: {exc}") from exc
                 if time.monotonic() >= deadline:
                     os.close(fd)
                     raise Busy(f"another logic-pro-mcp process holds {self.lock_path}")

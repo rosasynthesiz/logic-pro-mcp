@@ -84,7 +84,7 @@ def test_second_thread_is_refused_while_first_holds(tmp_path):
 
 def test_another_process_holding_the_file_is_refused(tmp_path):
     lock = tmp_path / "l"
-    code = ("import fcntl,sys,time; f=open(sys.argv[1],'w'); fcntl.flock(f, fcntl.LOCK_EX); "
+    code = ("import fcntl,sys,time,os; f=open(sys.argv[1],'w'); os.chmod(sys.argv[1],0o600); fcntl.flock(f, fcntl.LOCK_EX); "
             "print('held', flush=True); time.sleep(float(sys.argv[2]))")
     p = subprocess.Popen([sys.executable, "-c", code, str(lock), "10"], stdout=subprocess.PIPE, text=True)
     try:
@@ -99,10 +99,34 @@ def test_another_process_holding_the_file_is_refused(tmp_path):
         pass
 
 
-def test_guard_survives_an_unwritable_lock_path(tmp_path):
+def test_guard_refuses_an_unwritable_lock_path(tmp_path):
     g = policy.MutationGuard(lock_path=str(tmp_path / "no" / "such" / "dir" / "l"), timeout=0.2)
-    with g.held("x"):
-        assert g._fd is None                         # in-process serialisation only, and it says nothing else
+    with pytest.raises(policy.Busy, match="cannot safely open"):
+        with g.held("x"):
+            pytest.fail("must not mutate without cross-process exclusion")
+    assert g._fd is None and g._depth == 0 and g.holder is None
+
+
+def test_guard_refuses_symlink_without_touching_target(tmp_path):
+    target = tmp_path / "target"
+    target.write_text("preserve")
+    link = tmp_path / "lock"
+    link.symlink_to(target)
+    g = policy.MutationGuard(lock_path=str(link))
+    with pytest.raises(policy.Busy):
+        with g.held("x"):
+            pytest.fail("must not follow a lock symlink")
+    assert target.read_text() == "preserve"
+
+
+def test_guard_refuses_shared_lock_file(tmp_path):
+    lock = tmp_path / "lock"
+    lock.touch(mode=0o666)
+    lock.chmod(0o666)
+    g = policy.MutationGuard(lock_path=str(lock))
+    with pytest.raises(policy.Busy, match="private regular file"):
+        with g.held("x"):
+            pytest.fail("must not use a shared lock")
 
 
 def test_serialized_skips_reads_and_reports_busy(tmp_path, monkeypatch):
