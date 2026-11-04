@@ -1332,6 +1332,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--profile", choices=PROFILES, default=os.environ.get("LOGIC_MCP_PROFILE", "full"))
     args = p.parse_args(argv)
     if args.profile == "local":
+        # local exposes schemas in inspection mode and refuses before importing native adapters.
         from .local import main as local_main
         local_main()
         return

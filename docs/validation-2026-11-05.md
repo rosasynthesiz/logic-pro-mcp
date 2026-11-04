@@ -15,3 +15,11 @@ Validation limits:
 - CI now includes the 50-intent x 3 oracle replay. Oracle tests host plumbing, not a model. Consult this branch CI for actual results.
 - Recorded qwen3.5:4b and :9b model evaluations both failed the zero-unauthorized-write gate; description fixes still require remeasurement. Do not merge PR #1 or claim unattended model safety until these gates are met.
 - No release published; signed installer, clean Mac installation, upgrade/uninstall, live AX/MCU and disposable-project qualification remain open.
+
+
+## Independent review follow-up
+
+- Local inspection profile previously imported native adapters and health could run diagnostics. It now imports only the schema server/result helpers in inspection mode, marks the instructions, and refuses both dispatcher and direct registered tool calls. The stdio inspection check covers CLI flag, environment selector, local console entry point and module entry point (all eight tools), with native/backend import assertions.
+- Compact writes now acquire the mutation guard before preflight and hold it through step/thrash validation, write, readback and history updates. Deterministic two-thread gain and mute tests force the second writer to attempt entry while the first is paused, then require refusal based on the first result.
+- A responding or silent listener is never stale merely because ping fails. Only connection-refused or missing-path errors allow stale recovery; other errors preserve the path. Startup rechecks identity before stale unlink. Shutdown only unlinks the originally bound socket inode; replacement files, symlinks and active sockets are preserved by regressions. These identity checks do not claim protection from malicious same-user filesystem races.
+- Previous head e3e9f39 passed hosted macOS tests and its 150-case oracle replay. Follow-up changes require their own exact-head CI; historical success is not a substitute.

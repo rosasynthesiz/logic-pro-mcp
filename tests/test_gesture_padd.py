@@ -394,3 +394,57 @@ def test_bind_preserves_existing_non_socket(sock_path, tmp_path, symlink):
         padd._bind_unix_socket(sock_path)
     assert target.read_text() == "keep"
     assert os.path.lexists(sock_path)
+
+
+
+def test_silent_listener_is_not_stale(sock_path):
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+        listener.bind(sock_path)
+        listener.listen(1)
+        before = os.lstat(sock_path)
+        with pytest.raises(padd.PaddAlreadyRunning):
+            padd._bind_unix_socket(sock_path)
+        after = os.lstat(sock_path)
+        assert (before.st_dev, before.st_ino) == (after.st_dev, after.st_ino)
+
+
+def test_stale_socket_can_be_replaced(sock_path):
+    old = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    old.bind(sock_path)
+    old.close()
+    new = padd._bind_unix_socket(sock_path)
+    new.close()
+
+
+@pytest.mark.parametrize("replacement", ["file", "socket", "symlink"])
+def test_shutdown_preserves_replacement_path(sock_path, tmp_path, replacement):
+    srv = padd.PaddServer(FakePad(), socket_path=sock_path)
+    srv.start()
+    # Keep the original inode allocated so replacement identity is unambiguous.
+    moved = sock_path + ".original"
+    os.rename(sock_path, moved)
+    other = None
+    try:
+        if replacement == "socket":
+            other = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            other.bind(sock_path)
+            other.listen(1)
+        elif replacement == "symlink":
+            target = tmp_path / "target"
+            target.write_text("keep")
+            os.symlink(target, sock_path)
+        else:
+            with open(sock_path, "w") as f:
+                f.write("keep")
+        before = os.lstat(sock_path)
+        srv.stop()
+        after = os.lstat(sock_path)
+        assert (before.st_dev, before.st_ino) == (after.st_dev, after.st_ino)
+        if other:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.connect(sock_path)
+    finally:
+        srv.stop()
+        if other:
+            other.close()
+        os.unlink(moved)

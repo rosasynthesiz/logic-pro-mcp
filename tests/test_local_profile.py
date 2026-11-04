@@ -311,3 +311,45 @@ def test_mcp_tools_call_runs_a_real_one(monkeypatch):
 def test_no_resources_or_other_methods_are_served():
     srv = local.build_server()
     assert not {"resources/list", "resources/read", "prompts/list"} & set(srv._request_handlers)
+
+
+@pytest.mark.parametrize("tool_name,first_args,second_args", [
+    ("set_gain", {"gain_db": -12}, {"gain_db": 12}),
+    ("set_mute", {"muted": True}, {"muted": False}),
+])
+def test_concurrent_checks_use_post_write_state(monkeypatch, tmp_path, tool_name, first_args, second_args):
+    import contextlib
+    fakeax.wire(monkeypatch, ("Vocal",))
+    second_attempt = threading.Event()
+    first_in_write = threading.Event()
+
+    class ObservedGuard(policy.MutationGuard):
+        @contextlib.contextmanager
+        def held(self, *args, **kwargs):
+            if threading.current_thread().name == "second-writer":
+                second_attempt.set()
+            with super().held(*args, **kwargs) as guard:
+                yield guard
+
+    monkeypatch.setattr(policy, "guard", ObservedGuard(str(tmp_path / "lock"), timeout=3))
+    real_write = local._write
+
+    def paused_write(label, fn):
+        if threading.current_thread().name == "first-writer":
+            first_in_write.set()
+            assert second_attempt.wait(3)
+        return real_write(label, fn)
+
+    monkeypatch.setattr(local, "_write", paused_write)
+    results = {}
+    target_args = {"track_index": 1, "track_name": "Vocal"}
+    first = threading.Thread(name="first-writer", target=lambda: results.update(first=local.call(tool_name, target_args | first_args)))
+    second = threading.Thread(name="second-writer", target=lambda: results.update(second=local.call(tool_name, target_args | second_args)))
+    first.start()
+    assert first_in_write.wait(3)
+    second.start()
+    first.join(5); second.join(5)
+    assert not first.is_alive() and not second.is_alive()
+    assert results["first"]["state"] == "confirmed"
+    assert results["second"]["state"] == "failed" and results["second"]["refused"]
+    assert ("one call may move" if tool_name == "set_gain" else "the other way") in results["second"]["reason"]

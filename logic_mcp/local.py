@@ -44,10 +44,13 @@ import json
 import math
 import time
 from collections import Counter
+from functools import wraps
 from typing import Any, Callable
 
-from . import doctor, policy, server, target
-from .channels import ax, ax_logic, dialogs
+from . import server
+if not server.INSPECT_ONLY:
+    from . import doctor, policy, target
+    from .channels import ax, ax_logic, dialogs
 from .result import fail
 
 GAIN_MIN_DB, GAIN_MAX_DB, GAIN_MAX_STEP_DB = -60.0, 6.0, 12.0
@@ -71,6 +74,12 @@ INSTRUCTIONS = (
     "6) Only state \"confirmed\" is true. On \"uncertain\" read again and tell the human, never repeat the write. "
     "On \"failed\" report the fix. Say only what the readback shows."
 )
+if server.INSPECT_ONLY:
+    INSTRUCTIONS = "SCHEMA INSPECTION ONLY. All tool calls are disabled; no Logic Pro connection.\n" + INSTRUCTIONS
+
+
+def _inspection_refusal() -> dict:
+    return fail("policy", "Inspection-only mode: all tool calls are disabled; no Logic Pro connection", refused=True)
 
 _tools: dict[str, dict] = {}
 _impls: dict[str, Callable[..., dict]] = {}
@@ -82,9 +91,21 @@ def tool(name: str, description: str, schema: dict):
     full = {"type": "object", "properties": {}, "additionalProperties": False, **schema}
 
     def deco(fn):
+        @wraps(fn)
+        def guarded(*args, **kwargs):
+            if server.INSPECT_ONLY:
+                return _inspection_refusal()
+            if name in {"play", "stop", "set_tempo", "set_mute", "set_gain"}:
+                try:
+                    # Hold through preflight, step/thrash checks, send, readback and history.
+                    with policy.guard.held(name):
+                        return fn(*args, **kwargs)
+                except policy.Busy as exc:
+                    return fail("policy", f"refusing {name}: {exc}", "wait, then read the state before retrying", refused=True)
+            return fn(*args, **kwargs)
         _tools[name] = {"name": name, "description": description, "inputSchema": full}
-        _impls[name] = fn
-        return fn
+        _impls[name] = guarded
+        return guarded
     return deco
 
 
@@ -95,6 +116,8 @@ def tools() -> list[dict]:
 
 def call(name: str, arguments: Any) -> dict:
     """Validate and dispatch one call. The ONLY entry point: the MCP handler and the tests both use it."""
+    if server.INSPECT_ONLY:
+        return _inspection_refusal()
     spec = _tools.get(name)
     if spec is None:
         return fail("policy", f"unknown tool {name!r}; this profile serves {sorted(_tools)}", refused=True)
