@@ -4,12 +4,23 @@ Two paths into Logic:
   1. 'Logic Pro Virtual In' — Logic's own always-on input. Notes/CC land on the record-armed track.
   2. MCU emulation — we publish virtual ports; user adds a Mackie Control in Logic > Settings > Control Surfaces
      pointing at them. Then transport/mixer commands work and Logic echoes LED + LCD state back (readback).
+
+Only ONE process on the Mac may publish the MCU ports. Every MCP client (Claude, Hermes, a second Hermes
+over SSH, a doctor run) starts its own server, and each extra copy of the ports reaches Logic without the
+fixed unique IDs (the first owner holds them), so Logic treats it as new hardware and silently installs
+another Mackie Control chained at the next bank offset. Three of them on one port garble the LCD and move
+faders on the wrong tracks. Ownership is an exclusive flock held for the life of the process; a process
+that can't get it, or that sees the ports already published by an older server, leaves MCU alone and the
+callers fall back to OSC / Accessibility.
 """
 from __future__ import annotations
 
+import fcntl
+import os
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import rtmidi
 
@@ -40,6 +51,7 @@ MCU_SERIAL = [0x4C, 0x4D, 0x43, 0x50, 0x30, 0x30, 0x31]  # "LMCP001"
 MCU_CHALLENGE = [0x01, 0x02, 0x03, 0x04]
 MCU_VERSION = [0x56, 0x31, 0x2E, 0x30, 0x30]  # "V1.00"
 MCU_UID_SRC, MCU_UID_DST = 0x4C4D4331, 0x4C4D4332  # fixed CoreMIDI unique IDs ("LMC1"/"LMC2")
+MCU_LOCK_PATH = Path(os.environ.get("LOGIC_MCP_MCU_LOCK", "~/Library/Caches/logic-pro-mcp/mcu.lock")).expanduser()
 MCU_FADER_0DB = 12443  # Logic echoes this 14-bit value at +0.0 dB
 
 
@@ -58,6 +70,7 @@ class McuState:
     strips: dict[int, dict] = field(default_factory=dict)
     last_rx: float = 0.0
     rx_count: int = 0
+    unavailable: str = ""  # why this process does not own the MCU ports ("" = it does, or hasn't tried)
 
     @property
     def playing(self) -> bool: return self.leds.get("play", False)
@@ -68,7 +81,8 @@ class McuState:
         return {"handshake": self.handshake, "playing": self.playing, "recording": self.recording, "cycle": self.leds.get("cycle"),
                 "click": self.leds.get("click"), "lcd": self.lcd.strip(), "timecode": self.timecode,
                 "faders": self.faders, "strips": self.strips, "rx_count": self.rx_count,
-                "age_s": round(time.time() - self.last_rx, 2) if self.last_rx else None}
+                "age_s": round(time.time() - self.last_rx, 2) if self.last_rx else None,
+                **({"unavailable": self.unavailable} if self.unavailable else {})}
 
 
 class MidiBus:
@@ -76,6 +90,8 @@ class MidiBus:
         self._out: rtmidi.MidiOut | None = None
         self._mcu_out: rtmidi.MidiOut | None = None
         self._mcu_in: rtmidi.MidiIn | None = None
+        self._mcu_lock_fd: int | None = None
+        self._open_lock = threading.Lock()  # not self._lock: _on_mcu holds that on the CoreMIDI thread
         self.mcu = McuState()
         self._lcd = [" "] * 112
         self._lock = threading.Lock()
@@ -98,15 +114,91 @@ class MidiBus:
                 return True
         return False
 
-    def open_mcu(self) -> bool:
-        if self._mcu_out and self._mcu_in:
+    def _acquire_mcu_lock(self) -> bool:
+        """Exclusive, non-blocking, held until close() or process exit (the kernel drops it on death).
+        Caller holds self._open_lock."""
+        if self._mcu_lock_fd is not None:
             return True
-        self._mcu_out = rtmidi.MidiOut(); self._mcu_out.open_virtual_port(MCU_PORT)
-        self._mcu_in = rtmidi.MidiIn(); self._mcu_in.open_virtual_port(MCU_PORT)
-        self._mcu_in.ignore_types(sysex=False, timing=True, active_sense=True)
-        self._mcu_in.set_callback(self._on_mcu)
-        self._pin_unique_ids()
+        try:
+            MCU_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(MCU_LOCK_PATH, os.O_RDWR | os.O_CREAT, 0o600)
+        except OSError as e:  # fail closed: without the lock we can't know we're alone
+            self.mcu.unavailable = f"MCU ownership lock unavailable ({e}); not publishing MCU ports."
+            return False
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            holder = ""
+            try:
+                holder = os.pread(fd, 32, 0).decode(errors="replace").strip()
+            except OSError:
+                pass
+            os.close(fd)
+            self.mcu.unavailable = (f"MCU ports are owned by another logic-pro-mcp process (pid {holder or '?'}); "
+                                    "this one uses OSC/Accessibility instead. Not a Logic setup problem.")
+            return False
+        except OSError as e:  # e.g. ENOTSUP on a filesystem without flock: not contention, say what it is
+            os.close(fd)
+            self.mcu.unavailable = f"MCU ownership lock failed ({e}) on {MCU_LOCK_PATH}; not publishing MCU ports."
+            return False
+        self._mcu_lock_fd = fd
+        try:  # informational only; a failed write must not leak the locked fd
+            os.ftruncate(fd, 0); os.pwrite(fd, str(os.getpid()).encode(), 0)
+        except OSError:
+            pass
         return True
+
+    def _release_mcu_lock(self) -> None:
+        if self._mcu_lock_fd is not None:
+            try:
+                fcntl.flock(self._mcu_lock_fd, fcntl.LOCK_UN)
+            finally:
+                os.close(self._mcu_lock_fd)
+                self._mcu_lock_fd = None
+
+    @staticmethod
+    def _mcu_ports_published() -> bool:
+        """True if the MCU ports already exist. Only ever asked before THIS process publishes its own, so a
+        hit means another process has them (e.g. a server from before this lock)."""
+        try:
+            return any(MCU_PORT in p for p in rtmidi.MidiOut().get_ports() + rtmidi.MidiIn().get_ports())
+        except Exception:
+            return False
+
+    def open_mcu(self) -> bool:
+        # Tool calls run on worker threads; two parallel ones (health + transport state on an agent's first
+        # turn) must not both publish, nor have one release the lock under the other's live ports.
+        with self._open_lock:
+            if self._mcu_out and self._mcu_in:
+                return True
+            if not self._acquire_mcu_lock():
+                return False
+            if self._mcu_ports_published():
+                self._release_mcu_lock()
+                self.mcu.unavailable = ("MCU ports are already published by another process; "
+                                        "this one uses OSC/Accessibility instead. Not a Logic setup problem.")
+                return False
+            mo = mi = None
+            try:
+                mo = rtmidi.MidiOut(); mo.open_virtual_port(MCU_PORT)
+                mi = rtmidi.MidiIn(); mi.open_virtual_port(MCU_PORT)
+                mi.ignore_types(sysex=False, timing=True, active_sense=True)
+                self._mcu_out, self._mcu_in = mo, mi  # before the callback: handshake replies go through _mcu_out
+                mi.set_callback(self._on_mcu)
+                self._pin_unique_ids()
+            except Exception as e:  # never keep the lock (blocking every other server) over a half-open pair
+                with self._lock:
+                    self._mcu_out = self._mcu_in = None
+                for p in (mi, mo):
+                    try:
+                        p and p.close_port()
+                    except Exception:
+                        pass
+                self._release_mcu_lock()
+                self.mcu.unavailable = f"could not publish MCU ports: {e}"
+                return False
+            self.mcu.unavailable = ""
+            return True
 
     @staticmethod
     def _pin_unique_ids() -> None:
@@ -234,7 +326,8 @@ class MidiBus:
 
     # ---- MCU emulation ------------------------------------------------------
     def wait_ready(self, timeout: float = 4.0) -> bool:
-        self.open_mcu()
+        if not self.open_mcu():
+            return False
         end = time.time() + timeout
         while time.time() < end:
             if self.mcu.ready():
@@ -274,6 +367,9 @@ class MidiBus:
     def _on_mcu(self, event, _data=None) -> None:
         msg, _dt = event
         with self._lock:
+            out = self._mcu_out
+            if out is None:                                 # closed while this message was in flight
+                return
             self.mcu.last_rx = time.time(); self.mcu.rx_count += 1
             self.rx_log.append([hex(b) for b in msg]); del self.rx_log[:-50]
             st = msg[0] & 0xF0
@@ -289,13 +385,13 @@ class MidiBus:
             elif msg[0] == 0xF0 and len(msg) >= 7 and msg[1:4] == MCU_HDR:
                 model, cmd = msg[4], msg[5]
                 if cmd == 0x00 and model == MCU_MODEL:      # device query -> host connection query
-                    self._mcu_out.send_message([0xF0, *MCU_HDR, MCU_MODEL, 0x01, *MCU_SERIAL, *MCU_CHALLENGE, 0xF7])
+                    out.send_message([0xF0, *MCU_HDR, MCU_MODEL, 0x01, *MCU_SERIAL, *MCU_CHALLENGE, 0xF7])
                 elif cmd == 0x02 and model == MCU_MODEL:    # host connection reply -> confirmation
-                    self._mcu_out.send_message([0xF0, *MCU_HDR, MCU_MODEL, 0x03, *MCU_SERIAL, 0xF7])
+                    out.send_message([0xF0, *MCU_HDR, MCU_MODEL, 0x03, *MCU_SERIAL, 0xF7])
                     if not self.mcu.handshake:
                         self.mcu.handshake, self.mcu.handshake_at = True, time.time()
                 elif cmd == 0x13 and model == MCU_MODEL:    # version request
-                    self._mcu_out.send_message([0xF0, *MCU_HDR, MCU_MODEL, 0x14, *MCU_VERSION, 0xF7])
+                    out.send_message([0xF0, *MCU_HDR, MCU_MODEL, 0x14, *MCU_VERSION, 0xF7])
                 elif cmd == 0x12 and len(msg) > 7:          # LCD text
                     if not self.mcu.handshake:
                         self.mcu.handshake, self.mcu.handshake_at = True, time.time()
@@ -309,11 +405,21 @@ class MidiBus:
                 pass
 
     def close(self) -> None:
-        for p in (self._out, self._mcu_out, self._mcu_in):
-            try:
-                p and p.close_port()
-            except Exception:
-                pass
+        with self._open_lock:
+            ports = (self._mcu_in, self._mcu_out, self._out)
+            for p in ports:  # input first (its close_port also cancels the callback): nothing new arrives mid-close
+                try:
+                    p and p.close_port()
+                except Exception:
+                    pass
+            with self._lock:
+                self._out = self._mcu_out = self._mcu_in = None
+                # A reopened surface must handshake again; stale state would let mcu_button fire too early.
+                self.mcu = McuState()
+                self._lcd = [" "] * 112
+                self.bank = None
+            del ports, p  # last references: rtmidi destructors run here, not under the lock the callback needs
+            self._release_mcu_lock()
 
 
 _bus: MidiBus | None = None
