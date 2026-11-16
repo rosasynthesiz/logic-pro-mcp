@@ -192,12 +192,10 @@ refused rather than driven somewhere absurd. Ratio readouts (`4:1`) and signed i
 Plugin editors are identified by structure (a bypass control plus a close button) rather than by "any window
 that is not the arrange window", so an open Mixer is never mistaken for one.
 
-**Coverage varies by plugin, and the tool is honest about it.** Channel EQ names every control, so all 26
-parameters and 14 switches are exact. The Compressor leaves its sliders anonymous with the names in separate
-text elements and readouts in percent; those are matched by on-screen position and marked `labelled_by:
-"position"`. Any name that matches more than one control — Channel EQ has two sliders called `Gain` — is
-refused rather than guessed at. A parameter whose EQ band is switched off reports `AXEnabled: false`, and is
-either enabled first or refused.
+Channel EQ exposes named parameters and switches. For Logic's Compressor, the tool opens the Controls
+view, where each row pairs the parameter label with a real-unit readout. Other plug-in editors can still
+use positional matching for unnamed sliders. Ambiguous controls, such as the two `Gain` sliders in
+Channel EQ, fail explicitly. The tool can enable a disabled EQ band before writing its parameter.
 
 ## Auto-leveling
 

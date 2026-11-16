@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 import rtmidi
 
 LOGIC_IN_NAME = "Logic Pro Virtual In"
+LOGIC_IN_NAMES = (LOGIC_IN_NAME, "Logic Pro 虚拟输入")
 MCU_PORT = "LogicMCP MCU"
 
 # Mackie Control transport buttons (note numbers, channel 1). Press = vel 127, release = vel 0.
@@ -84,15 +85,28 @@ class MidiBus:
 
     # ---- ports -------------------------------------------------------------
     @staticmethod
+    def _port_name(raw: str) -> str:
+        # RtMidi can return UTF-8 endpoint names interpreted as Mac Roman.
+        if raw.isascii():
+            return raw
+        try:
+            decoded = raw.encode("mac_roman").decode("utf-8")
+        except UnicodeError:
+            return raw
+        return decoded
+
+    @staticmethod
     def list_ports() -> dict:
-        return {"outputs": rtmidi.MidiOut().get_ports(), "inputs": rtmidi.MidiIn().get_ports()}
+        return {"outputs": [MidiBus._port_name(n) for n in rtmidi.MidiOut().get_ports()],
+                "inputs": [MidiBus._port_name(n) for n in rtmidi.MidiIn().get_ports()]}
 
     def open_logic_in(self) -> bool:
         if self._out:
             return True
         mo = rtmidi.MidiOut()
         for i, name in enumerate(mo.get_ports()):
-            if LOGIC_IN_NAME in name:
+            decoded = self._port_name(name)
+            if any(label in decoded for label in LOGIC_IN_NAMES):
                 mo.open_port(i)
                 self._out = mo
                 return True
@@ -164,13 +178,17 @@ class MidiBus:
             window = track_names[off:off + 8]
             if not window:
                 break
+            # An audio project can append Logic's own output and master strips to a short bank.
+            # Never expose those as arrangement tracks, or accept other trailing channel names.
+            tail = [name for name in names[len(window):] if name]
+            utility_tail = tail in (["St Out", "Master"], ["St Out"])
             ok = True
             for i in range(8):
                 if i < len(window):
                     if not self._abbrev_matches(names[i], window[i]):
                         ok = False
                         break
-                elif names[i]:                      # a name where the list has no track
+                elif names[i] and not utility_tail:  # a name where the list has no track
                     ok = False
                     break
             if ok:
@@ -182,7 +200,7 @@ class MidiBus:
         if track_names is None:                     # no way to verify -> only trust the first bank
             return track_index1 - 1 if 1 <= track_index1 <= 8 else None
         off = self.bank_offset(track_names)
-        if off is None:
+        if off is None or not 1 <= track_index1 <= len(track_names):
             return None
         strip = (track_index1 - 1) - off
         return strip if 0 <= strip < 8 else None

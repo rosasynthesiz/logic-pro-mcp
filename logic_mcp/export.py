@@ -5,7 +5,7 @@ import os
 import time
 from pathlib import Path
 
-from .channels import ax, ax_logic, dialogs, keys
+from .channels import ax, ax_logic, dialogs, keys, labels
 from .result import fail, ok, unsure
 
 # checkbox AXDescription in the bounce dialog, keyed by the name a caller would use
@@ -29,7 +29,7 @@ ID_TAIL, ID_ADD_TO_PROJECT = "_NS:30", "_NS:731"
 
 
 def _fmt_checkbox(dlg, label: str):
-    return ax.find(dlg, role_="AXCheckBox", desc_=label, max_depth=6)
+    return ax_logic.find_label(dlg, label, role="AXCheckBox", depth=6)
 
 
 def format_rows(dlg) -> dict:
@@ -38,7 +38,7 @@ def format_rows(dlg) -> dict:
     for r in ax.find_all(dlg, lambda e: ax.role(e) == "AXRow", max_depth=6, limit=8):
         txt = [str(ax.value(t)) for t in ax.find_all(r, lambda e: ax.role(e) == "AXStaticText", max_depth=3, limit=2)]
         if txt:
-            out[txt[0].split(":")[0].strip()] = r
+            out[labels.canonical(txt[0].split(":")[0].strip(), ROW_OPTIONS)] = r
     return out
 
 
@@ -61,15 +61,15 @@ def select_format_row(dlg, label: str, settle: float = 0.5) -> bool:
 def _requires_text(dlg) -> str | None:
     for el in ax.find_all(dlg, lambda e: ax.role(e) == "AXStaticText", max_depth=3, limit=30):
         v = str(ax.value(el) or "")
-        if v.startswith("Requires"):
+        if v.startswith(("Requires", "需要")):
             return v
     return None
 
 
 def open_bounce(root, timeout: float = 4.0):
-    if not ax_logic.press_menu_item(root, "File", "Bounce", "~^Project or Section"):
+    if not ax_logic.press_menu_item(root, "File", "Bounce", "~^(?:Project or Section|项目或部分)"):
         return None
-    return dialogs.wait_for(lambda: next((x for x in dialogs.other_windows(root) if str(ax.title(x) or "").startswith("Bounce")), None), timeout)
+    return dialogs.wait_for(lambda: next((x for x in dialogs.other_windows(root) if str(ax.title(x) or "").startswith(("Bounce", "并轨"))), None), timeout)
 
 
 def bounce(
@@ -110,7 +110,7 @@ def bounce(
             expect.append(p)
     pre = {p: (os.path.getmtime(p) if os.path.exists(p) else None) for p in expect}
 
-    if dialogs.other_windows(root):
+    if dialogs.blocking_windows(root):
         return fail("bounce", "another dialog is already open", {"windows": ax_logic.window_titles(root)})
 
     ax_logic.raise_app(root, ax_logic.main_window(root), pid); time.sleep(0.3)
@@ -173,7 +173,6 @@ def bounce(
             dialogs.cancel_all(root)
             return fail("bounce", "save panel did not appear", {"windows": ax_logic.window_titles(root)})
 
-        ax_logic.raise_app(root, ax_logic.main_window(root), pid); time.sleep(0.5)
         steps["directory"] = dialogs.set_directory(panel, pid, directory)
         if not steps["directory"]["ok"]:
             # Never bounce into whatever folder the panel happened to open in. Measured: a refused
@@ -185,9 +184,9 @@ def bounce(
             dialogs.cancel_all(root)
             return fail("bounce", "could not set filename", {"steps": steps})
 
-        if not dialogs.confirm_save(panel, app_name):
+        if not dialogs.confirm_save(panel, app_name, expected_name=stem):
             dialogs.cancel_all(root)
-            return fail("bounce", "Bounce button not pressable")
+            return fail("bounce", "could not confirm save panel focus and filename")
     except Exception as e:  # never leave a modal dialog on screen
         dialogs.cancel_all(root)
         return fail("bounce", f"{type(e).__name__}: {e}", {"steps": steps})
@@ -230,17 +229,19 @@ def export_stems(root, pid: int, app_name: str, directory: str, timeout: float =
     directory = os.path.expanduser(directory)
     os.makedirs(directory, exist_ok=True)
     before = set(os.listdir(directory))
-    if dialogs.other_windows(root):
+    if dialogs.blocking_windows(root):
         return fail("export", "another dialog is already open", {"windows": ax_logic.window_titles(root)})
     ax_logic.raise_app(root, ax_logic.main_window(root), pid); time.sleep(0.3)
-    if not ax_logic.press_menu_item(root, "File", "Export", "~All Tracks as Audio Files"):
+    if not ax_logic.press_menu_item(root, "File", "Export", "~^(?:All Tracks as Audio Files|所有轨道为音频文件)"):
         return fail("menu", "Export > All Tracks as Audio Files… not found")
-    panel = dialogs.wait_for(lambda: next((x for x in dialogs.other_windows(root)), None), 4.0)
+    panel = dialogs.save_panel(root, timeout=4.0, folder=True)
     if panel is None:
         return fail("export", "panel did not appear")
     try:
-        ax_logic.raise_app(root, ax_logic.main_window(root), pid); time.sleep(0.5)
-        dialogs.set_directory(panel, pid, directory)
+        dest = dialogs.set_directory(panel, pid, directory)
+        if not dest["ok"]:
+            dialogs.cancel_all(root)
+            return fail("export", "could not set the destination folder", dest)
         if not dialogs.confirm_save(panel, app_name):
             dialogs.cancel_all(root)
             return fail("export", "could not confirm the panel")
@@ -253,7 +254,7 @@ def export_stems(root, pid: int, app_name: str, directory: str, timeout: float =
     while time.time() < deadline:
         now = set(os.listdir(directory)) - before
         cur = {n: os.path.getsize(os.path.join(directory, n)) for n in now}
-        if cur and cur == sizes and all(v > 0 for v in cur.values()) and not dialogs.other_windows(root):
+        if cur and cur == sizes and all(v > 0 for v in cur.values()) and not dialogs.blocking_windows(root):
             break
         sizes = cur
         time.sleep(1.5)

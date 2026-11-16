@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 import time
 
-from . import ax, keys
+from . import ax, ax_logic, keys, labels
 
 SAVE_NAME = "saveAsNameTextField"
 OK_BUTTON = "OKButton"
@@ -23,7 +23,14 @@ CANCEL_BUTTON = "CancelButton"
 
 # ---------------------------------------------------------------- generic
 def other_windows(root, main_suffix: str = "- Tracks") -> list:
-    return [x for x in ax.windows(root) if not str(ax.title(x) or "").endswith(main_suffix)]
+    return [x for x in ax.windows(root) if not ax_logic.is_main_window(x)
+            and not str(ax.title(x) or "").endswith(main_suffix)]
+
+
+def blocking_windows(root) -> list:
+    return [x for x in other_windows(root) if ax.attr(x, "AXModal")
+            or ax.attr(x, "AXSubrole") in ("AXDialog", "AXSystemDialog")
+            or labels.matches(ax.desc(x), "alert")]
 
 
 def wait_for(pred, timeout: float = 5.0, step: float = 0.15):
@@ -50,7 +57,7 @@ def find_by_id(root, ident: str, max_depth: int = 10):
 
 
 def button(win, title: str, max_depth: int = 6):
-    return ax.find(win, role_="AXButton", title_=title, max_depth=max_depth)
+    return ax_logic.find_label(win, title, attr=ax.title, role="AXButton", depth=max_depth)
 
 
 def cancel_all(root, tries: int = 3) -> list[str]:
@@ -72,7 +79,7 @@ def cancel_all(root, tries: int = 3) -> list[str]:
 # ---------------------------------------------------------------- alerts
 def alert(root):
     for x in ax.windows(root):
-        if str(ax.desc(x) or "") == "alert":
+        if labels.matches(ax.desc(x), "alert"):
             return x
     return None
 
@@ -95,16 +102,20 @@ def answer_alert(root, choice: str = "Cancel", timeout: float = 2.0) -> dict | N
         return None
     text = alert_text(win)
     btns = alert_buttons(win)
-    el = btns.get(choice)
+    button_labels = labels.variants("Replace File" if choice == "Replace" else choice)
+    el = next((btns[t] for t in button_labels if t in btns), btns.get(choice))
     pressed = bool(el is not None and ax.press(el))
     return {"text": text, "buttons": list(btns), "chose": choice, "pressed": pressed}
 
 
 # ---------------------------------------------------------------- save panel
-def save_panel(root, timeout: float = 6.0):
+def save_panel(root, timeout: float = 6.0, *, folder: bool = False):
     def look():
         for x in other_windows(root):
-            if find_by_id(x, SAVE_NAME) is not None:
+            if folder:
+                if ax.ident(x) == "open-panel" and find_by_id(x, OK_BUTTON) is not None:
+                    return x
+            elif find_by_id(x, SAVE_NAME) is not None:
                 return x
         return None
     return wait_for(look, timeout)
@@ -137,28 +148,67 @@ def focused_field_in(panel):
 def set_directory(panel, pid: int | None, directory: str, settle: float = 1.2) -> dict:
     """Cmd+Shift+G, type the path, Return. HID-level because the panel is another process's window."""
     directory = os.path.expanduser(directory)
-    if focused_field_in(panel) is None:
-        # Give the panel keyboard focus by clicking its own name field (a real click: the panel belongs to
-        # the open/save XPC service), then re-check rather than assume.
-        from . import mouse, screen
-        tf = find_by_id(panel, SAVE_NAME) or ax.find(panel, role_="AXTextField", max_depth=6)
-        r = screen.element_rect(tf) if tf is not None else None
-        if r is not None:
-            mouse.click(r[0] + r[2] / 2, r[1] + r[3] / 2); time.sleep(0.4)
-    if focused_field_in(panel) is None:
-        return {"ok": False, "reason": "save panel does not have keyboard focus; refusing to send Cmd+Shift+G"}
-    keys.press("cmd+shift+g", None); time.sleep(0.8)
-    sheet = next((c for c in ax.children(panel) if ax.role(c) == "AXSheet"), None)
-    field = focused_field_in(panel)
+    root = ax.app(pid) if pid is not None else None
+    if root is not None:
+        if not ax_logic.raise_app(root, panel, pid):
+            return {"ok": False, "reason": "could not bring the file panel forward"}
+        ready = wait_for(lambda: ax.attr(root, "AXFocusedWindow") == panel, timeout=1.5)
+    else:
+        ready = focused_field_in(panel) is not None
+    if not ready:
+        return {"ok": False, "reason": "file panel does not have keyboard focus"}
+
+    keys.press("cmd+shift+g")
+
+    def path_field():
+        if root is not None:
+            current = ax.attr(root, "AXFocusedUIElement")
+            if current is not None and ax.ident(current) == GOTO_FIELD:
+                return current
+        current = focused_field_in(panel)
+        return current if current is not None and ax.ident(current) == GOTO_FIELD else None
+
+    field = wait_for(path_field, timeout=2.0)
     if field is None:
-        keys.press("escape", None)
         return {"ok": False, "reason": "Go To Folder field never took focus; refusing to type the path"}
-    if not ax.set_value(field, directory) or str(ax.value(field) or "") != directory:
-        keys.type_keys(directory, None); time.sleep(0.5)           # only reached with focus proven above
-    typed = str(ax.value(field) or "")
-    keys.press("return", None); time.sleep(settle)
+    sheet = next((c for c in ax.children(panel) if ax.role(c) == "AXSheet"), None)
+    wanted = os.path.normpath(directory)
+
+    def read_path():
+        current = path_field()
+        return str(ax.value(current) or "") if current is not None else ""
+
+    def matches_path():
+        return os.path.normpath(read_path()) == wanted
+
+    if not matches_path():
+        keys.press("cmd+a")
+        keys.press("delete")
+        if not wait_for(lambda: path_field() is not None and not read_path(), timeout=0.9):
+            return {"ok": False, "reason": "could not clear the Go To Folder field"}
+        keys.type_text(directory)
+    if not wait_for(matches_path, timeout=1.5):
+        typed = read_path()
+        if path_field() is not None:
+            keys.press("escape")
+        return {"ok": False, "reason": "Go To Folder path did not match", "typed": typed}
+
+    def exact_suggestion():
+        scope = sheet if sheet is not None else panel
+        match = find_by_id(scope, wanted)
+        if match is None:
+            return None
+        entries = ax.find_all(match, lambda el: "AXOpen" in ax.actions(el), max_depth=2, limit=2)
+        return entries[0] if len(entries) == 1 else None
+
+    # A typed path is not necessarily the highlighted entry. Open the exact result when available.
+    typed = read_path()
+    suggestion = wait_for(exact_suggestion, timeout=1.5)
+    if suggestion is None or not ax.perform(suggestion, "AXOpen"):
+        keys.press("return")
+    closed = wait_gone(path_field, timeout=settle)
     where = str(ax.value(find_by_id(panel, "where popup")) or "")
-    ok = where != "" and (where == os.path.basename(directory.rstrip("/")) or typed == directory)
+    ok = closed and where == os.path.basename(directory.rstrip("/"))
     return {"ok": ok, "where": where, "typed": typed, "sheet_seen": sheet is not None}
 
 
@@ -182,24 +232,32 @@ def set_filename(panel, name: str, pid: int | None = None) -> dict:
     return {"ok": after == name, "before": before, "after": after, "how": "typed"}
 
 
-def confirm_save(panel, app_name: str | None = None) -> bool:
+def confirm_save(panel, app_name: str | None = None, *, expected_name: str | None = None) -> bool:
     """AXPress does not work on this panel; click the button for real with its app frontmost."""
     from . import mouse, screen
     b = find_by_id(panel, OK_BUTTON)
     if b is None:
         return False
-    r = screen.element_rect(b)
-    if r is None:
-        return ax.press(b)
-    from . import ax_logic
     if app_name:
         import AppKit
-        ra = next((x for x in AppKit.NSWorkspace.sharedWorkspace().runningApplications() if x.localizedName() == app_name), None)
-        if ra is not None:
-            ax_logic.raise_app(ax.app(ra.processIdentifier()), None, ra.processIdentifier()); time.sleep(0.4)
-    if screen.topmost_owner_pid(r[0] + r[2] / 2, r[1] + r[3] / 2) is None:
+        app = next((x for x in AppKit.NSWorkspace.sharedWorkspace().runningApplications()
+                    if x.localizedName() == app_name), None)
+        if app is not None:
+            pid = app.processIdentifier()
+            root = ax.app(pid)
+            if not ax_logic.raise_app(root, panel, pid) or ax.attr(root, "AXFocusedWindow") != panel:
+                return False
+    if expected_name is not None:
+        field = find_by_id(panel, SAVE_NAME)
+        if field is None or str(ax.value(field) or "") != expected_name:
+            return False
+    rect = screen.element_rect(b)
+    if rect is None:
+        return ax.press(b)
+    x, y = rect[0] + rect[2] / 2, rect[1] + rect[3] / 2
+    if screen.topmost_owner_pid(x, y) is None:
         return False
-    return mouse.click(r[0] + r[2] / 2, r[1] + r[3] / 2, pid=None)
+    return mouse.click(x, y, pid=None)
 
 
 # ---------------------------------------------------------------- popups
@@ -224,7 +282,8 @@ def set_popup(el, value: str, pid: int | None = None, settle: float = 0.35) -> d
     if el is None:
         return {"ok": False, "reason": "popup not found"}
     before = popup_value(el)
-    if before == value:
+    wanted = {t.replace(" ", "").casefold() for t in labels.variants(value)}
+    if before is not None and before.replace(" ", "").casefold() in wanted:
         return {"ok": True, "before": before, "after": before, "how": "noop"}
     if not ax.press(el):
         return {"ok": False, "before": before, "reason": "press failed"}
@@ -236,7 +295,7 @@ def set_popup(el, value: str, pid: int | None = None, settle: float = 0.35) -> d
     hit = None
     for k in ax.children(menu):
         t = str(ax.title(k) or "")
-        if t == value or t.replace(" ", "").lower() == value.replace(" ", "").lower():
+        if t.replace(" ", "").casefold() in wanted:
             hit = k
             break
     if hit is None:
@@ -245,7 +304,8 @@ def set_popup(el, value: str, pid: int | None = None, settle: float = 0.35) -> d
         return {"ok": False, "before": before, "reason": f"no option {value!r}", "options": titles}
     ax.press(hit); time.sleep(settle)
     after = popup_value(el)
-    return {"ok": after == value, "before": before, "after": after, "how": "menu"}
+    return {"ok": after is not None and after.replace(" ", "").casefold() in wanted,
+            "before": before, "after": after, "how": "menu"}
 
 
 # ---------------------------------------------------------------- segmented bar/beat fields
@@ -255,7 +315,7 @@ def segment_group(win, label_value: str, max_depth: int = 4):
     kids = ax.children(win)
     idx = None
     for i, k in enumerate(kids):
-        if ax.role(k) == "AXStaticText" and str(ax.value(k) or "") == label_value:
+        if ax.role(k) == "AXStaticText" and labels.matches(ax.value(k), label_value):
             idx = i
             break
     if idx is None:
@@ -292,7 +352,7 @@ def popup_for_label(win, label: str, max_depth: int = 6):
     from . import screen
     lab = None
     for el in ax.find_all(win, lambda e: ax.role(e) == "AXStaticText", max_depth=max_depth, limit=60):
-        if str(ax.value(el) or "") == label:
+        if labels.matches(ax.value(el), label):
             lab = el
             break
     if lab is None:
