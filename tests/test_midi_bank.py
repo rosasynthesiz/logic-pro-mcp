@@ -56,3 +56,16 @@ def test_blank_lcd_is_unknown_and_strip_for_fails_closed():
     b = _bus(["Audo17", "Audo18", "Audo19", "Audo20", "Audo21", "Audo22", "Audo23", "Audo24"])
     assert b.strip_for(19, TRACKS) == 2                   # track 19 is the third strip of the bank at 16
     assert b.strip_for(3, TRACKS) is None                 # not on the surface right now
+
+
+def test_short_audio_project_accepts_only_known_output_suffix():
+    b = _bus(["HiHat", "Kick", "Snare", "St Out", "Master", "", "", ""])
+    names = ["HiHat", "Kick", "Snare"]
+    assert b.strip_for(2, names) == 1
+    assert b.strip_for(4, names) is None
+    assert _bus(["HiHat", "Kick", "Snare", "Aux 1", "Master", "", "", ""]).bank_offset(names) is None
+
+
+def test_chinese_core_midi_port_name_is_decoded_without_changing_ascii_names():
+    assert MidiBus._port_name("Logic Pro ËôöÊãüËæìÂÖ•") == "Logic Pro 虚拟输入"
+    assert MidiBus._port_name("Logic Pro Virtual In") == "Logic Pro Virtual In"

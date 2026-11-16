@@ -63,6 +63,12 @@ def frontmost() -> str | None:
     return out if ok else None
 
 
+def frontmost_pid(timeout: float = 1.5) -> int | None:
+    ok, out = run('tell application "System Events" to get unix id of first application process whose frontmost is true',
+                  timeout=timeout)
+    return int(out) if ok and out.isdecimal() else None
+
+
 def press_menu(app_name: str, *path: str) -> tuple[bool, str]:
     """Click a menu item by path, e.g. press_menu(app, "Track", "New Software Instrument Track")."""
     if len(path) < 2:

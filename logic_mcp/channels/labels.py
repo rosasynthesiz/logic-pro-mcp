@@ -1,0 +1,85 @@
+"""Observed Logic Pro Accessibility labels for English and Simplified Chinese."""
+
+ZH = {
+    "Control Bar": "控制条",
+    "Playhead Position": "播放头位置",
+    "Tempo": "速度",
+    "Time Signature": "拍号",
+    "Key Signature": "调号",
+    "bar": "小节",
+    "beat": "节拍",
+    "Tracks header": "轨道 标头",
+    "Tracks contents": "“轨道”内容",
+    "Has Focus": "有焦点",
+    "Volume": "音量",
+    "Mute": "静音",
+    "Solo": "独奏",
+    "Record Enable": "启用录音",
+    "Input Monitoring": "正在监听",
+    "Play": "播放",
+    "Record": "录音",
+    "Cycle": "循环",
+    "Count In": "预备",
+    "Replace": "替换",
+    "Go to Beginning": "跳到开头",
+    "Library": "资源库",
+    "Inspector": "检查器",
+    "Mixer": "混音器",
+    "Editors": "编辑器",
+    "List Editors": "列表编辑器",
+    "Smart Controls": "智能控制",
+    "Loop Browser": "循环浏览器",
+    "Browsers": "浏览器",
+    "Toolbar": "工具栏",
+    "Quick Help": "快速帮助",
+    "Tuner": "调音器",
+    "File": "文件",
+    "Bounce": "并轨",
+    "Export": "导出",
+    "Mix": "混音",
+    "Uncompressed": "未压缩",
+    "File Type:": "文件类型：",
+    "Sample Rate:": "采样速率：",
+    "Bit Depth:": "位深度：",
+    "Format:": "格式：",
+    "Dithering:": "添加假噪声：",
+    "Start:": "开始：",
+    "End:": "结束：",
+    "Mode:": "模式：",
+    "Normalize:": "正常化：",
+    "Off": "关",
+    "On": "开",
+    "Overload Protection Only": "仅过载保护",
+    "Automatic": "自动",
+    "Offline": "离线",
+    "Realtime": "实时",
+    "16-bit": "16 位",
+    "24-bit": "24 位",
+    "32-bit Float": "32 位浮点",
+    "OK": "好",
+    "Cancel": "取消",
+    "Replace File": "替换",
+    "alert": "警告",
+    "close": "关闭",
+    "bypass": "旁通",
+    "view": "显示",
+    "Controls": "控制",
+    "Channel EQ": "通道均衡器",
+    "Compressor": "压缩器",
+    "Threshold": "阈值",
+    "Ratio": "比率",
+    "Attack": "起音",
+    "Release": "释放",
+}
+
+
+def variants(label: str) -> tuple[str, ...]:
+    return (label, ZH[label]) if label in ZH else (label,)
+
+
+def matches(value, label: str) -> bool:
+    return str(value or "") in variants(label)
+
+
+def canonical(value: str, candidates) -> str:
+    return next((label for label in candidates if matches(value, label)), value)

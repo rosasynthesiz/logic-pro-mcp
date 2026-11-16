@@ -62,8 +62,12 @@ def type_text(text: str, pid: int | None = None) -> bool:
     for ch in text:
         ev_d = Q.CGEventCreateKeyboardEvent(None, 0, True)
         ev_u = Q.CGEventCreateKeyboardEvent(None, 0, False)
-        Q.CGEventKeyboardSetUnicodeString(ev_d, len(ch), ch)
-        Q.CGEventKeyboardSetUnicodeString(ev_u, len(ch), ch)
+        if ev_d is None or ev_u is None:
+            return False
+        units = len(ch.encode("utf-16-le")) // 2
+        for ev in (ev_d, ev_u):
+            Q.CGEventSetFlags(ev, 0)
+            Q.CGEventKeyboardSetUnicodeString(ev, units, ch)
         if pid:
             Q.CGEventPostToPid(pid, ev_d); Q.CGEventPostToPid(pid, ev_u)
         else:
