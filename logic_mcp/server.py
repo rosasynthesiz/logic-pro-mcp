@@ -946,7 +946,7 @@ def logic_plugins(
         sw = plugs.owning_switch(win, parameter)
         if sw is None or not enable_band:
             return fail("plugins", f"{parameter} is disabled — its band is switched off",
-                        "pass enable_band=true, or switch the band on first")
+                        "set enable_band=true, or switch the band on first")
         enabled_band = ax_logic.set_checkbox(sw, True)
         time.sleep(0.4)
 

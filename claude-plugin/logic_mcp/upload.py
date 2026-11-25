@@ -44,7 +44,7 @@ def setup_hint(remote_name: str = "drive") -> dict:
         "connect": f"rclone config create {remote_name} drive scope=drive",
         "note": ("rclone opens your browser to sign in to your own Google account and stores the token in "
                  "your own rclone config. Nothing is sent to this server, and no credentials are stored here."),
-        "then": f"set {REMOTE_ENV}={remote_name}, or pass remote=\"{remote_name}\" on each call",
+        "then": f"set {REMOTE_ENV}={remote_name}, or give remote=\"{remote_name}\" on each call",
         "verify": "rclone about " + remote_name + ":",
     }
 
@@ -68,7 +68,7 @@ def resolve_remote(remote: str | None = None) -> tuple[str | None, str | None]:
     if not configured:
         return None, "no rclone remote is configured — connect your own cloud account first"
     if len(configured) > 1:
-        return None, (f"several remotes are configured ({configured}); pass remote=... or set ${REMOTE_ENV} "
+        return None, (f"several remotes are configured ({configured}); give remote=... or set ${REMOTE_ENV} "
                       "— refusing to guess which account your audio should go to")
     return configured[0], None
 

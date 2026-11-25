@@ -1,6 +1,6 @@
 ---
 name: logic-pro-mcp
-description: Use when the user wants to control Logic Pro on macOS through the logic-pro MCP server: transport, tracks, mixer levels, plug-in parameters, bounce or stems, delivering a bounce to cloud storage, measuring or balancing levels, or putting dialogue markers into a project. Also use when a Logic tool call fails or returns an uncertain result.
+description: "Use when the user wants to control Logic Pro on macOS through the logic-pro MCP server: transport, tracks, mixer levels, plug-in parameters, bounce or stems, delivering a bounce to cloud storage, measuring or balancing levels, or putting dialogue markers into a project. Also use when a Logic tool call fails or returns an uncertain result."
 ---
 
 # Logic Pro MCP
