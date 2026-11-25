@@ -75,6 +75,12 @@ In Claude Code, add this repository as a marketplace, then install the plugin:
 /plugin install logic-pro-mcp@logic-pro-mcp
 ```
 
+Or in one line from your terminal:
+
+```bash
+claude plugin install logic-pro-mcp --marketplace rosasynthesiz/logic-pro-mcp
+```
+
 The plugin lives in the `claude-plugin/` folder (a self-contained copy of the server plus the skill). Installing it adds the `logic-pro` MCP server with its 12 tools and 7 resources, plus the `logic-pro-mcp` skill, which teaches Claude the confirmed / uncertain / failed contract and how to use each tool.
 
 - **What runs:** Claude Code starts `claude-plugin/server.py` with `uv run`, using the dependency versions pinned in `claude-plugin/uv.lock`. `uv` downloads those pinned Python packages (prebuilt wheels) from PyPI the first time it runs.
@@ -262,7 +268,7 @@ within about 4 of 127, and that path stays `uncertain` rather than overstating i
 
 ## Mix engine
 
-Plain language in, stock plug-in settings out. *"cut the mud in the strings"* resolves the STRINGS family
+Plain language in, stock plug-in settings out. The engine is a Python module (`logic_mcp/mix.py`); it is not exposed as an MCP tool yet, so the plugin and the server's 12 tools do not include it. *"cut the mud in the strings"* resolves the STRINGS family
 track, opens or creates its Channel EQ, and drives a recipe of parameter targets with readback.
 
 34 recipes, each carrying synonyms, the plug-in it needs, per-source frequency overrides

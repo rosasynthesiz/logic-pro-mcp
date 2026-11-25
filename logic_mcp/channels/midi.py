@@ -423,10 +423,13 @@ class MidiBus:
 
 
 _bus: MidiBus | None = None
+_bus_lock = threading.Lock()  # tool calls run on worker threads; build the bus once
 
 
 def bus() -> MidiBus:
     global _bus
     if _bus is None:
-        _bus = MidiBus()
+        with _bus_lock:
+            if _bus is None:
+                _bus = MidiBus()
     return _bus

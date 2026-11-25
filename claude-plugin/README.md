@@ -7,7 +7,14 @@ Lets Claude drive Logic Pro on your Mac: transport, tracks, mixer levels, plug-i
 In Claude Code:
 
 ```
-/plugin install logic-pro-mcp --marketplace rosasynthesiz/logic-pro-mcp
+/plugin marketplace add rosasynthesiz/logic-pro-mcp
+/plugin install logic-pro-mcp@logic-pro-mcp
+```
+
+Or in one line from your terminal:
+
+```
+claude plugin install logic-pro-mcp --marketplace rosasynthesiz/logic-pro-mcp
 ```
 
 ## Requirements
