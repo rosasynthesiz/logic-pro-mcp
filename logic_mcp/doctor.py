@@ -57,15 +57,20 @@ def run(probe_mcu: bool = True) -> dict:
 
     # MCU surface readback
     if probe_mcu:
-        b = bus(); b.open_mcu()
-        for _ in range(30):  # Logic scans new ports within ~0.5s and we answer its handshake
-            if b.mcu.handshake:
-                break
-            time.sleep(0.1)
-        got = b.mcu.handshake
-        checks.append({"name": "mcu_surface", "status": "ok" if got else "warn", "summary": f"Mackie Control handshake done, {b.mcu.rx_count} msgs, LCD: {b.mcu.lcd.split(chr(10))[0].strip()[:40]!r}" if got else f"No MCU handshake. In Logic: Settings > Control Surfaces > Setup > New > Install > Mackie Control, set In/Out to '{MCU_PORT}'"})
-        if not got:
-            fix.append(f"Add Mackie Control surface in Logic pointing at '{MCU_PORT}'")
+        b = bus()
+        if not b.open_mcu():
+            # Another server owns the ports. Telling the human to add a surface here is what used to
+            # leave three Mackie Controls stacked on one port.
+            checks.append({"name": "mcu_surface", "status": "warn", "summary": b.mcu.unavailable})
+        else:
+            for _ in range(30):  # Logic scans new ports within ~0.5s and we answer its handshake
+                if b.mcu.handshake:
+                    break
+                time.sleep(0.1)
+            got = b.mcu.handshake
+            checks.append({"name": "mcu_surface", "status": "ok" if got else "warn", "summary": f"Mackie Control handshake done, {b.mcu.rx_count} msgs, LCD: {b.mcu.lcd.split(chr(10))[0].strip()[:40]!r}" if got else f"No MCU handshake. In Logic: Settings > Control Surfaces > Setup > New > Install > Mackie Control, set In/Out to '{MCU_PORT}'"})
+            if not got:
+                fix.append(f"Add Mackie Control surface in Logic pointing at '{MCU_PORT}'")
 
     ready = [c["name"] for c in checks if c["status"] == "ok"]
     blocked = [c["name"] for c in checks if c["status"] in ("blocked", "failed")]

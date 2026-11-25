@@ -96,6 +96,8 @@ def transport_state() -> dict:
     out["tempo"] = axs.get("tempo"); out["position"] = axs.get("position"); out["cycle"] = axs.get("cycle")
     if not out["sources"]:
         out["reason"] = "no MCU handshake and Accessibility not trusted"
+        if b.mcu.unavailable:
+            out["reason"] += f" ({b.mcu.unavailable})"
     return out
 
 
@@ -561,13 +563,19 @@ def logic_midi(
         return ok("midi", f"sysex {len(data)} bytes") if b.sysex(data) else fail("midi", "send failed")
     if action == "mmc" and command in MMC:
         return unsure("midi", f"MMC {command} sent; Logic must have 'Listen to MMC Input' enabled") if b.mmc(command) else fail("midi", "send failed")
+    mcu_args_ok = ((action == "mcu_button" and command in MCU_BUTTONS) or (action == "mcu_strip" and command)
+                   or (action == "mcu_fader" and value is not None))
+    if mcu_args_ok and not b.open_mcu():
+        # Nothing was sent. Say why, rather than "surface not configured", which used to send humans off to
+        # add yet another Mackie Control.
+        return fail("mcu", b.mcu.unavailable or "MCU ports unavailable", readback=b.mcu.to_dict())
     if action == "mcu_button" and command in MCU_BUTTONS:
-        b.open_mcu(); b.mcu_button(command); time.sleep(0.2)
+        b.mcu_button(command); time.sleep(0.2)
         return (ok if _mcu_live() else unsure)("mcu", f"button {command}", b.mcu.to_dict()) if _mcu_live() else unsure("mcu", "no MCU traffic from Logic; surface not configured", b.mcu.to_dict())
     if action == "mcu_strip" and command:
-        b.open_mcu(); return ok("mcu", f"{command} strip {strip}") if b.mcu_strip(command, strip) else fail("mcu", "bad strip/kind")
+        return ok("mcu", f"{command} strip {strip}") if b.mcu_strip(command, strip) else fail("mcu", "bad strip/kind")
     if action == "mcu_fader" and value is not None:
-        b.open_mcu(); return ok("mcu", f"fader {strip}={value}") if b.mcu_fader(strip, value) else fail("mcu", "send failed")
+        return ok("mcu", f"fader {strip}={value}") if b.mcu_fader(strip, value) else fail("mcu", "send failed")
     return fail("midi", f"bad args for {action}")
 
 
