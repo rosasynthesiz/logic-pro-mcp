@@ -60,7 +60,7 @@ def resolve_remote(remote: str | None = None) -> tuple[str | None, str | None]:
         if remote not in configured:
             return None, f"no rclone remote named {remote!r}; configured: {configured or 'none'}"
         return remote, None
-    pinned = os.environ.get(REMOTE_ENV, "").strip()
+    pinned = os.environ.get("LOGIC_MCP_REMOTE", "").strip()
     if pinned:
         if pinned not in configured:
             return None, f"${REMOTE_ENV} is {pinned!r} but rclone has no such remote; configured: {configured or 'none'}"
