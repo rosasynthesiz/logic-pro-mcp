@@ -5,6 +5,8 @@ on macOS — transport, tracks, mixer, plug-ins, bounce, delivery — with every
 hands-and-voice control of the faders. Works with both the desktop purchase and the **Creator Studio** subscription
 build (`com.apple.mobilelogic`). Package name `logic-pro-mcp`; the Python module is `logic_mcp`.
 
+**Website:** [rosasynthesiz.com/products/logic-pro-mcp](https://rosasynthesiz.com/products/logic-pro-mcp): what it does, all 12 tools and setup.
+
 *Not affiliated with or endorsed by Apple. Logic Pro is a trademark of Apple Inc.*
 
 Apple ships no API, so this talks to Logic the way hardware does:

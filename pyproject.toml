@@ -33,7 +33,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/rosasynthesiz/logic-pro-mcp"
+Homepage = "https://rosasynthesiz.com/products/logic-pro-mcp"
 Repository = "https://github.com/rosasynthesiz/logic-pro-mcp"
 
 [project.optional-dependencies]
