@@ -1,0 +1,20 @@
+{
+  "name": "logic-pro-mcp",
+  "displayName": "Logic Pro MCP",
+  "version": "0.1.1",
+  "description": "Drive Logic Pro on macOS from Claude: transport, tracks, mixer, plug-in parameters, bounce and delivery, with every result read back from Logic. Runs locally on your Mac; needs Logic Pro and Accessibility and Automation permissions.",
+  "author": {
+    "name": "Rosa Synthesiz",
+    "url": "https://rosasynthesiz.com"
+  },
+  "homepage": "https://rosasynthesiz.com/products/logic-pro-mcp",
+  "repository": "https://github.com/rosasynthesiz/logic-pro-mcp",
+  "license": "MIT",
+  "keywords": ["logic-pro", "daw", "music-production", "mixing", "macos", "mcp"],
+  "mcpServers": {
+    "logic-pro": {
+      "command": "uv",
+      "args": ["run", "--frozen", "--directory", "${CLAUDE_PLUGIN_ROOT}", "logic-pro-mcp"]
+    }
+  }
+}
