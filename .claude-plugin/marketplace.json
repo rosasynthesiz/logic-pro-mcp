@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "logic-pro-mcp",
+  "owner": {
+    "name": "Rosa Synthesiz",
+    "url": "https://rosasynthesiz.com"
+  },
+  "description": "Logic Pro MCP: drive Logic Pro on macOS from Claude.",
+  "plugins": [
+    {
+      "name": "logic-pro-mcp",
+      "source": "./claude-plugin",
+      "description": "Drive Logic Pro on macOS from Claude: transport, tracks, mixer, plug-in parameters, bounce and delivery, with every result read back from Logic.",
+      "version": "0.1.1",
+      "homepage": "https://rosasynthesiz.com/products/logic-pro-mcp",
+      "license": "MIT",
+      "keywords": ["logic-pro", "daw", "music-production", "mixing", "macos", "mcp"]
+    }
+  ]
+}

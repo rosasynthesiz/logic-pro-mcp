@@ -68,13 +68,21 @@ hermes mcp add logic-pro-mcp --command uv --args run --directory "/path/to/logic
 
 ## Install as a Claude plugin
 
-This repository is also a Claude Code plugin (`.claude-plugin/plugin.json`). Installing it adds the `logic-pro` MCP server with its 12 tools and 7 resources, plus the `logic-pro-mcp` skill, which teaches Claude the confirmed / uncertain / failed contract and how to use each tool.
+In Claude Code, add this repository as a marketplace, then install the plugin:
 
-- **What runs:** Claude Code starts `uv run --frozen --directory <plugin folder> logic-pro-mcp`. That runs this repository's own source with the dependency versions pinned in `uv.lock`. `uv` downloads those pinned Python packages from PyPI the first time it runs.
-- **What it needs:** [uv](https://docs.astral.sh/uv/) installed, a Mac with Logic Pro (desktop or Creator Studio), and **Accessibility** and **Automation > System Events** permission (System Settings > Privacy & Security) for the app that runs the server. Check the setup with the doctor command, from the plugin folder: `uv run logic-pro-mcp-doctor`. Claude can run the same check through `logic_system`.
-- **What it connects to:** only your own Mac. It controls Logic Pro through OSC, Mackie Control over virtual CoreMIDI ports, Accessibility, key commands and AppleScript, and reads rendered audio files from disk to measure levels. The OSC control surface listens on a local UDP port and is advertised over Bonjour so Logic can find it. The server starts no background service (the optional gesture and voice processes are separate and only run if you start them) and makes no calls to the internet.
+```
+/plugin marketplace add rosasynthesiz/logic-pro-mcp
+/plugin install logic-pro-mcp@logic-pro-mcp
+```
+
+The plugin lives in the `claude-plugin/` folder (a self-contained copy of the server plus the skill). Installing it adds the `logic-pro` MCP server with its 12 tools and 7 resources, plus the `logic-pro-mcp` skill, which teaches Claude the confirmed / uncertain / failed contract and how to use each tool.
+
+- **What runs:** Claude Code starts `claude-plugin/server.py` with `uv run`, using the dependency versions pinned in `claude-plugin/uv.lock`. `uv` downloads those pinned Python packages (prebuilt wheels) from PyPI the first time it runs.
+- **What it needs:** [uv](https://docs.astral.sh/uv/) installed, Python 3.12 already installed (the plugin never downloads a Python), a Mac with Logic Pro (desktop or Creator Studio), and **Accessibility** and **Automation > System Events** permission (System Settings > Privacy & Security) for the app that runs the server. Claude can check the setup through `logic_system`; the standalone doctor command (`uv run logic-pro-mcp-doctor`) is available when you run this repository from a checkout.
+- **What it connects to:** only your own Mac. It controls Logic Pro through OSC, Mackie Control over virtual CoreMIDI ports, Accessibility, key commands and AppleScript, and reads rendered audio files from disk to measure levels. The OSC control surface listens on a local UDP port and is advertised over Bonjour so Logic can find it. The server starts no background service and makes no calls to the internet.
 - **The one exception is delivery:** `logic_deliver` uploads a bounce with `rclone` (which you install yourself) to a remote in the user's own rclone configuration, only when you ask for it. No credentials and no default remote ship with the server, and with several remotes and none pinned it refuses rather than guessing. Nothing else leaves your machine.
 - **What it changes:** the project open in Logic Pro, only when you ask. `logic_offline` edits names inside a saved project file, with Logic closed.
+- **Keeping the copy in sync:** after changing `logic_mcp/`, run `python scripts/sync_claude_plugin.py`. A test fails if the plugin copy drifts.
 
 ## Tools
 - `logic_system` — health/doctor, permissions, midi_ports, key_map, `ax_dump` / `ax_find` (explore Logic's UI tree)

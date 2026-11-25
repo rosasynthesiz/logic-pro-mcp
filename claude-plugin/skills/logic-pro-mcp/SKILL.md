@@ -10,7 +10,7 @@ Guidance for the `logic-pro` MCP server (12 tools, 7 resources). It talks to Log
 ## Start and troubleshoot
 
 - If anything fails or looks off, call `logic_system` (health / doctor, permissions, midi_ports) before retrying. It reports which channels are ready and what the user must click.
-- Outside Claude, the same check is `uv run logic-pro-mcp-doctor` in the plugin folder.
+- `logic_system` runs the same check as the standalone `logic-pro-mcp-doctor` command from the project's GitHub README.
 - The server needs a Mac with Logic Pro, and the app running the server needs **Accessibility** and **Automation > System Events** permission (System Settings > Privacy & Security). If the doctor says a permission is missing, tell the user to grant it. Do not work around it.
 - Do not retry a failed call blindly. Read the result, say what failed, and fix the cause.
 

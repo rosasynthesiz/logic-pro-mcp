@@ -11,10 +11,11 @@
   "repository": "https://github.com/rosasynthesiz/logic-pro-mcp",
   "license": "MIT",
   "keywords": ["logic-pro", "daw", "music-production", "mixing", "macos", "mcp"],
+  "icon": ".claude-plugin/icon.png",
   "mcpServers": {
     "logic-pro": {
       "command": "uv",
-      "args": ["run", "--frozen", "--directory", "${CLAUDE_PLUGIN_ROOT}", "logic-pro-mcp"]
+      "args": ["run", "--project", "${CLAUDE_PLUGIN_ROOT}", "--frozen", "--isolated", "--no-dev", "--no-build", "--no-config", "--no-python-downloads", "${CLAUDE_PLUGIN_ROOT}/server.py"]
     }
   }
 }

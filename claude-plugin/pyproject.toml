@@ -1,0 +1,21 @@
+[project]
+name = "logic-pro-mcp-claude-plugin"
+version = "0.1.1"
+description = "Claude plugin wrapper for Logic Pro MCP (runtime dependencies only)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "mcp==2.1.1",
+    # mcp pulls cryptography; 49+ ships arm64-only macOS wheels, 48.0.1 is the newest with Intel (universal2) wheels.
+    "cryptography==48.0.1",
+    "numpy==2.5.2",
+    "pyobjc-framework-applicationservices==12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-cocoa==12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-coremidi==12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-quartz==12.2.2; sys_platform == 'darwin'",
+    "python-rtmidi==1.5.8; sys_platform == 'darwin'",
+    "scipy==1.18.1",
+    "soundfile==0.14.0",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'darwin'"]
