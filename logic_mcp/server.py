@@ -393,25 +393,35 @@ def logic_tracks(
                           "hidden by the Configure Track Header settings")
 
     if action == "set_volume":
-        vol_el = ax.find(item, role_="AXSlider", desc_="Volume", max_depth=1)
+        vol_el = ax_logic.volume_slider(item)
         strip = b.strip_for(info["index"], all_names) if (db is not None and _mcu_live()) else None
         if strip is not None and vol_el is not None:
             lo, hi = 0, 16383; guess = 12443 if db >= -6 else 6000
             best = None
-            for _ in range(9):  # binary search on Logic's own dB readback
+            for _ in range(15):  # binary search on Logic's own dB readback
                 b.mcu_fader(strip, guess); time.sleep(0.25)
                 got = ax_logic.parse_db(ax.attr(vol_el, "AXValueDescription"))
-                best = (guess, got)
-                if got is None or abs(got - db) <= 0.25:
+                if got is None:
                     break
-                lo, hi = (guess, hi) if got < db else (lo, guess)
+                if best is None or abs(got - db) < abs(best[1] - db):
+                    best = (guess, got)
+                if abs(got - db) <= 0.25:
+                    break
+                lo, hi = (guess + 1, hi) if got < db else (lo, guess - 1)
+                if lo > hi:
+                    break
                 guess = (lo + hi) // 2
-            return ok("mcu", f"{info['name']} volume -> {best[1]} dB (fader {best[0]})", ax_logic.track_info(item)) if best and best[1] is not None and abs(best[1] - db) <= 0.25 \
-                else unsure("mcu", f"closest {best[1] if best else None} dB", ax_logic.track_info(item))
+            if best is not None and best[0] != guess:
+                b.mcu_fader(strip, best[0])
+                time.sleep(0.25)
+            actual = ax_logic.track_info(item)
+            landed = ax_logic.parse_db(actual.get("volume_text"))
+            if landed is not None and abs(landed - db) <= 0.25:
+                return ok("mcu", f"{info['name']} volume -> {landed} dB", actual)
+            return unsure("mcu", f"landed at {landed} dB", actual)
         if db is not None and value is None:      # MCU could not reach it — nudge the AX slider to the dB
             if vol_el is None:
                 return fail("ax", "volume slider not found")
-            tgt_raw = None
             r = ax_logic.nudge_slider_to_db(vol_el, db)
             return ok("ax", f"{info['name']} volume -> {r['display']}", r) if r["ok"] \
                 else unsure("ax", f"landed at {r['display']}", r)
@@ -428,7 +438,7 @@ def logic_tracks(
         # OSC first: the header pan slider only supports Increment/Decrement and settles within ~4 of 127,
         # so the AX path could never honestly report `confirmed`. Over OSC the readback is Logic's own
         # value. Only strips currently on the surface can be addressed, so AX stays as the fallback.
-        strip = _osc_strip_for(index)
+        strip = _osc_strip_for(info["index"])
         if strip is not None:
             r = logic_osc("pan", strip=strip, value=max(0.0, min(1.0, value / 127.0)))
             if r.get("state") == "confirmed":
@@ -756,7 +766,7 @@ def logic_export(
         return ok("dialogs", f"dismissed {acted}" if acted else "nothing to dismiss", {"windows": ax_logic.window_titles(root)})
 
     if action == "options":
-        if dialogs.other_windows(root):
+        if dialogs.blocking_windows(root):
             return fail("export", "another dialog is already open", {"windows": ax_logic.window_titles(root)})
         with _front():
             dlg = export.open_bounce(root)
@@ -907,6 +917,10 @@ def logic_plugins(
     if not wins:
         return fail("plugins", "no plugin editor window is open", "logic_plugins(action='insert', ...) or open one in Logic")
     win = wins[0]
+
+    if action in ("describe", "get", "set", "switch") and plugs.editor_name(win, "Compressor"):
+        if not plugs.reveal_compressor_controls(win):
+            return fail("plugins", "Compressor Controls view could not be opened safely")
 
     if action == "describe":
         return plugs.describe(win)
@@ -1077,7 +1091,9 @@ def logic_level(
     detail = {"reference": p["reference"], "mode": mode, "applied": applied, "unmatched": unmatched,
               "summary": leveling.summarise(p)}
     if dry_run:
-        return ok("level", f"would apply {len(applied)} move(s)" + (f", {len(unmatched)} unmatched" if unmatched else ""), detail)
+        if unmatched:
+            return unsure("level", f"would apply {len(applied)} move(s), {len(unmatched)} unmatched", detail)
+        return ok("level", f"would apply {len(applied)} move(s)", detail)
     bad_vol = [a for a in applied if a.get("volume_result") != "confirmed"]
     bad_pan = [a for a in applied if a.get("pan_result") not in (None, "confirmed")]
     if unmatched or bad_vol or bad_pan:

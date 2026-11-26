@@ -17,7 +17,7 @@ import math
 import re
 import time
 
-from .channels import ax, ax_logic, applescript, dialogs, keys
+from .channels import ax, ax_logic, dialogs, keys, labels, mouse, screen
 from .result import fail, ok, unsure
 
 STEP_COARSE = 10.0   # units moved by AXIncrement / AXDecrement
@@ -74,26 +74,67 @@ def is_plugin_window(win) -> bool:
     the channel strip name, and the Mixer, Piano Roll and every dialog would otherwise look like one."""
     # 'bypass' is an AXCheckBox on Channel EQ and an AXButton on the Compressor, so match on the
     # description alone; pair it with the editor's close button to avoid false positives.
-    has_bypass = any(str(ax.desc(c) or "") == "bypass" for c in ax.children(win))
-    has_close = any(str(ax.desc(c) or "") == "close" for c in ax.children(win))
+    has_bypass = any(labels.matches(ax.desc(c), "bypass") for c in ax.children(win))
+    has_close = any(labels.matches(ax.desc(c), "close") for c in ax.children(win))
     return has_bypass and has_close
 
 
 def plugin_windows(root, main_suffix: str = "- Tracks") -> list:
     """Open plugin editors, identified by structure rather than by not being the arrange window."""
     return [x for x in ax.windows(root)
-            if not str(ax.title(x) or "").endswith(main_suffix) and is_plugin_window(x)]
+            if not ax_logic.is_main_window(x) and not str(ax.title(x) or "").endswith(main_suffix) and is_plugin_window(x)]
 
 
 def close_plugin_windows(root) -> list[str]:
     closed = []
     for x in plugin_windows(root):
         t = str(ax.title(x) or "")
-        b = ax.find(x, role_="AXButton", desc_="close", max_depth=2)
+        b = ax_logic.find_label(x, "close", role="AXButton", depth=2)
         if b is not None and ax.press(b):
             closed.append(t)
             time.sleep(0.3)
     return closed
+
+
+def editor_name(win, name: str) -> bool:
+    channel = str(ax.title(win) or "")
+    expected = {candidate.casefold() for candidate in labels.variants(name)}
+    expected.update(f"{candidate} {channel}".strip().casefold() for candidate in labels.variants(name))
+    return any(ax.role(el) == "AXStaticText" and str(ax.value(el) or "").casefold() in expected
+               for el in ax.children(win))
+
+
+def controls_rows(win) -> list:
+    """A Controls-view cell groups its own label and real-unit readout."""
+    rows = []
+    for cell in ax.find_all(win, lambda el: ax.role(el) == "AXCell", max_depth=8, limit=200):
+        kids = ax.children(cell)
+        row_labels = [str(ax.value(el) or "").strip() for el in kids if ax.role(el) == "AXStaticText"]
+        labels_with_colon = [name.rstrip(":：").strip() for name in row_labels if name.endswith((":", "："))]
+        if len(labels_with_colon) != 1:
+            continue
+        candidates = [el for el in kids if ax.role(el) in ("AXCheckBox", "AXPopUpButton")]
+        for group in (el for el in kids if ax.role(el) == "AXGroup"):
+            for slider in ax.children(group):
+                display = ax.attr(slider, "AXValueDescription")
+                if ax.role(slider) == "AXSlider" and display == ax.value(group) and parse_value(display) is not None:
+                    candidates.append(slider)
+        if len(candidates) == 1:
+            rows.append((labels_with_colon[0], candidates[0]))
+    return rows
+
+
+def reveal_compressor_controls(win) -> bool:
+    if controls_rows(win):
+        return True
+    view = ax_logic.find_label(win, "view", role="AXMenuButton", depth=2)
+    if view is None or not ax.press(view):
+        return False
+    menu = dialogs.wait_for(lambda: ax_logic.find_label(view, "Controls", attr=ax.title, role="AXMenuItem"), 1.2)
+    if menu is None or not ax.press(menu):
+        ax.perform(view, "AXCancel")
+        return False
+    return dialogs.wait_for(lambda: controls_rows(win), 1.5) is not None
 
 
 def _controls(win) -> list:
@@ -149,34 +190,33 @@ def label_for(win, el, labels: list | None = None) -> str | None:
 def describe(win) -> dict:
     """Every addressable control in a plugin window, with its real-unit readout."""
     params, switches, menus = [], [], []
-    for el in _controls(win):
-        name = str(ax.desc(el) or "")
+    rows = controls_rows(win)
+    candidates = [(str(ax.desc(el) or ""), el, None) for el in _controls(win)]
+    if rows:
+        candidates.extend((name, el, "row") for name, el in rows)
+    else:
+        text_labels = _text_labels(win)
+        candidates.extend((label_for(win, el, text_labels), el, "position") for el in _unnamed_sliders(win))
+
+    for name, el, labelled_by in candidates:
+        if not name:
+            continue
         role = ax.role(el)
         if role == "AXSlider":
             vd = ax.attr(el, "AXValueDescription")
             p = parse_value(vd)
-            params.append({"name": name, "display": str(vd) if vd else None,
-                           "value": p[0] if p else None, "unit": p[1] if p else None,
-                           "raw": ax_logic._num(ax.value(el)),
-                           "raw_min": ax_logic._num(ax.attr(el, "AXMinValue")),
-                           "raw_max": ax_logic._num(ax.attr(el, "AXMaxValue"))})
+            param = {"name": name, "display": str(vd) if vd else None,
+                     "value": p[0] if p else None, "unit": p[1] if p else None,
+                     "raw": ax_logic._num(ax.value(el)),
+                     "raw_min": ax_logic._num(ax.attr(el, "AXMinValue")),
+                     "raw_max": ax_logic._num(ax.attr(el, "AXMaxValue"))}
+            if labelled_by:
+                param["labelled_by"] = labelled_by
+            params.append(param)
         elif role == "AXCheckBox":
             switches.append({"name": name, "on": ax_logic._truthy(ax.value(el))})
         elif role == "AXPopUpButton":
             menus.append({"name": name, "value": str(ax.value(el) or "")})
-    labels = _text_labels(win)
-    for el in _unnamed_sliders(win):
-        vd = ax.attr(el, "AXValueDescription")
-        p = parse_value(vd)
-        name = label_for(win, el, labels)
-        if not name:
-            continue
-        params.append({"name": name, "display": str(vd) if vd else None,
-                       "value": p[0] if p else None, "unit": p[1] if p else None,
-                       "raw": ax_logic._num(ax.value(el)),
-                       "raw_min": ax_logic._num(ax.attr(el, "AXMinValue")),
-                       "raw_max": ax_logic._num(ax.attr(el, "AXMaxValue")),
-                       "labelled_by": "position"})
     preset = ax.find(win, role_="AXPopUpButton", max_depth=2)
     return {"window": str(ax.title(win) or ""), "preset": str(ax.value(preset) or "") if preset is not None else None,
             "parameters": params, "switches": switches, "menus": menus}
@@ -184,52 +224,27 @@ def describe(win) -> dict:
 
 def resolve_control(win, name: str, role: str | None = None) -> tuple:
     """(element, reason). reason is 'ok', 'not_found' or 'ambiguous' — the caller should not have to guess."""
-    cands = [el for el in _controls(win) if not role or ax.role(el) == role]
-    exact = [el for el in cands if str(ax.desc(el) or "") == name]
-    if len(exact) == 1:
-        return exact[0], "ok"
-    if len(exact) > 1:
-        return None, "ambiguous"
-    hits = [el for el in cands if name.lower() in str(ax.desc(el) or "").lower()]
-    if len(hits) == 1:
-        return hits[0], "ok"
-    if len(hits) > 1:
-        return None, "ambiguous"
-    if role in (None, "AXSlider"):
-        labels = _text_labels(win)
-        by_label = [(el, label_for(win, el, labels)) for el in _unnamed_sliders(win)]
-        for pick in (lambda lab: lab.strip().lower() == name.lower(),
-                     lambda lab: name.lower() in lab.strip().lower()):
-            got = [el for el, lab in by_label if lab and pick(lab)]
-            if len(got) == 1:
-                return got[0], "ok"
-            if len(got) > 1:
-                return None, "ambiguous"
+    rows = controls_rows(win)
+    cands = [(str(ax.desc(el) or ""), el) for el in _controls(win)] + rows
+    exact_names = {n.casefold() for n in labels.variants(name)}
+    role_matches = [(lab, el) for lab, el in cands if not role or ax.role(el) == role]
+    exact = [el for lab, el in role_matches if lab.casefold() in exact_names]
+    if exact:
+        return (exact[0], "ok") if len(exact) == 1 else (None, "ambiguous")
+    if not rows and role in (None, "AXSlider"):
+        text_labels = _text_labels(win)
+        role_matches.extend((lab, el) for el in _unnamed_sliders(win)
+                            if (lab := label_for(win, el, text_labels)))
+    for pick in (lambda lab: lab.casefold() in exact_names,
+                 lambda lab: any(n in lab.casefold() for n in exact_names)):
+        hits = [el for lab, el in role_matches if pick(lab)]
+        if hits:
+            return (hits[0], "ok") if len(hits) == 1 else (None, "ambiguous")
     return None, "not_found"
 
 
 def find_control(win, name: str, role: str | None = None):
-    """Exact AXDescription match, then a unique substring, then — for plugins that leave their sliders
-    anonymous — the slider whose nearest text label matches."""
-    cands = [el for el in _controls(win) if not role or ax.role(el) == role]
-    exact = [el for el in cands if str(ax.desc(el) or "") == name]
-    if len(exact) == 1:
-        return exact[0]
-    if len(exact) > 1:
-        return None          # e.g. Channel EQ has two sliders both called "Gain" — refuse, never guess
-    hits = [el for el in cands if name.lower() in str(ax.desc(el) or "").lower()]
-    if len(hits) == 1:
-        return hits[0]
-    if role in (None, "AXSlider"):
-        labels = _text_labels(win)
-        by_label = [(el, label_for(win, el, labels)) for el in _unnamed_sliders(win)]
-        exact = [el for el, lab in by_label if lab and lab.strip().lower() == name.lower()]
-        if len(exact) == 1:
-            return exact[0]
-        loose = [el for el, lab in by_label if lab and name.lower() in lab.strip().lower()]
-        if len(loose) == 1:
-            return loose[0]
-    return None
+    return resolve_control(win, name, role)[0]
 
 
 # ---------------------------------------------------------------- writing a parameter
@@ -345,58 +360,93 @@ def set_parameter(el, target: float, tolerance: float | None = None, max_moves: 
 
 # ---------------------------------------------------------------- insertion
 def insert(root, pid: int, app_name: str, plugin: str, timeout: float = 6.0) -> dict:
-    """Mix > Search and Add Plug-in… — the only reliable route, since the channel-strip slot popup
-    is a custom-drawn layer with no Accessibility tree."""
-    before = {str(ax.title(x) or "") for x in plugin_windows(root)}
-    applescript.activate(app_name); time.sleep(0.3)
-    if not ax_logic.press_menu_item(root, "Mix", "~^Search and Add Plug-in"):
+    """Find the exact search result and confirm the identity of the editor that opens."""
+    before = plugin_windows(root)
+    if dialogs.alert(root) is not None:
+        return fail("plugins", "dismiss Logic's alert before inserting a plugin")
+    if not ax_logic.raise_app(root, ax_logic.main_window(root), pid):
+        return fail("plugins", "could not activate Logic's project window")
+    if not ax_logic.press_menu_item(root, "Mix", "~^(?:Search and Add Plug-in|搜索并添加插件)"):
         return fail("menu", "Mix > Search and Add Plug-in… not found")
 
     def search_dialog():
-        # the search sheet is not a plugin editor: it has a text field and a results outline, no bypass
-        for x in ax.windows(root):
-            if str(ax.title(x) or "").endswith("- Tracks") or is_plugin_window(x):
+        for win in dialogs.other_windows(root):
+            if is_plugin_window(win):
                 continue
-            if ax.find(x, role_="AXTextField", max_depth=4) is not None and ax.find(x, role_="AXOutline", max_depth=5) is not None:
-                return x
+            for field in ax.find_all(win, lambda el: ax.role(el) == "AXTextField", max_depth=4, limit=4):
+                placeholder = str(ax.attr(field, "AXPlaceholderValue") or "")
+                if re.search(r"Search.*Plug-in|搜索.*插件", placeholder, re.I):
+                    return win, field
+            field = ax.find(win, role_="AXTextField", max_depth=4)
+            if not ax.title(win) and field is not None and ax.find(win, role_="AXOutline", max_depth=5) is not None:
+                return win, field
         return None
 
-    dlg = dialogs.wait_for(search_dialog, 4.0)
-    if dlg is None:
+    match = dialogs.wait_for(search_dialog, 4.0)
+    if match is None:
         return fail("plugins", "search dialog did not open", {"windows": ax_logic.window_titles(root)})
-    def _rows():
-        out = []
-        for r in ax.find_all(dlg, lambda e: ax.role(e) == "AXRow", max_depth=6, limit=12):
-            t = [str(ax.value(x)) for x in ax.find_all(r, lambda e: ax.role(e) == "AXStaticText", max_depth=3, limit=1)]
-            if t:
-                out.append((t[0], r))
-        return out
+    dlg, field = match
 
-    def _type(q: str):
-        keys.press("cmd+a", pid); keys.type_keys(q, pid); time.sleep(0.9)
-        return _rows()
+    def rows():
+        results = []
+        for row in ax.find_all(dlg, lambda e: ax.role(e) == "AXRow", max_depth=7, limit=30):
+            label = ax.find(row, role_="AXStaticText", max_depth=3)
+            text = (ax.value(label) if label is not None else None) or ax.title(row) or ax.desc(row)
+            if text:
+                results.append((str(text), row))
+        return results
 
-    found = _type(plugin)
-    if not found and " " in plugin:
-        # Logic's plug-in search does not match a trailing qualifier the way it is displayed:
-        # "DeEsser 2" returns nothing while "DeEsser" lists it. Retry on the leading word.
-        found = _type(plugin.split()[0])
-    names = [n for n, _ in found]
-    if not names:
-        keys.press("escape", pid)
-        return fail("plugins", f"no plugin matches {plugin!r}")
-    exact = [(n, r) for n, r in found if n.lower() == plugin.lower()]
-    if not exact and len(names) > 1:
-        keys.press("escape", pid)
-        return fail("plugins", f"{plugin!r} is ambiguous", {"matches": names[:10]})
-    if exact:
-        # Return activates the HIGHLIGHTED row, which is the first result, not necessarily the one
-        # asked for -- select the exact row first or "DeEsser 2" silently inserts "DeEsser (m)".
-        import ApplicationServices as AS
-        AS.AXUIElementSetAttributeValue(exact[0][1], "AXSelected", True)
-        time.sleep(0.4)
-    keys.press("return", pid); time.sleep(1.8)
-    win = dialogs.wait_for(lambda: next((x for x in plugin_windows(root) if str(ax.title(x) or "") not in before), None), timeout)
+    def query(text: str):
+        # HID-level typing lets the SwiftUI search field process spaces and focus normally.
+        if not ax.attr(field, "AXFocused"):
+            return []
+        if ax.value(field):
+            keys.press("cmd+a", pid)
+            time.sleep(0.09)
+        keys.type_text(text, pid)
+        deadline = time.monotonic() + 1.2
+        while time.monotonic() < deadline:
+            time.sleep(0.15)
+            found = rows()
+            if str(ax.value(field) or "") == text and found:
+                return found
+        return []
+
+    wanted = labels.variants(plugin)
+    found = query(plugin)
+    exact = [(name, row) for name, row in found if name.casefold() in {n.casefold() for n in wanted}]
+    if not exact and len(wanted) > 1:
+        found = query(wanted[1])
+        exact = [(name, row) for name, row in found if name.casefold() == wanted[1].casefold()]
+    if not exact and " " in plugin:
+        found = query(plugin.split()[0])
+        exact = [(name, row) for name, row in found if name.casefold() in {n.casefold() for n in wanted}]
+    if len(exact) != 1:
+        if ax.attr(field, "AXFocused"):
+            keys.press("escape")
+        return fail("plugins", f"no unique match for {plugin!r}", {"matches": [name for name, _ in found]})
+
+    name, row = exact[0]
+    rect = screen.element_rect(row)
+    if rect is None:
+        return fail("plugins", f"search result {name!r} is not on screen")
+    x, y = rect[0] + rect[2] / 2, rect[1] + rect[3] / 2
+    if not ax_logic.owns_point(pid, x, y):
+        return fail("plugins", f"search result {name!r} is covered by another window")
+    mouse.click(x, y)
+    time.sleep(0.35)
+    if search_dialog() is not None and ax_logic.owns_point(pid, x, y):
+        keys.press("return")
+
+    def opened():
+        for win in plugin_windows(root):
+            if win in before:
+                continue
+            if editor_name(win, plugin):
+                return win
+        return None
+
+    win = dialogs.wait_for(opened, timeout)
     if win is None:
-        return unsure("plugins", "inserted, but no editor window appeared", {"matched": names[:5]})
-    return ok("plugins", f"inserted {exact[0][0] if exact else names[0]}", {"window": str(ax.title(win) or ""), "matched": names[:5]})
+        return unsure("plugins", "the requested plugin editor could not be verified", {"matched": name})
+    return ok("plugins", f"inserted {name}", {"window": str(ax.title(win) or ""), "matched": name})

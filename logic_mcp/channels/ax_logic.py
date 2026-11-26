@@ -15,9 +15,9 @@ from __future__ import annotations
 import re
 import time
 
-from . import ax
+from . import ax, labels
 
-TRACK_RE = re.compile(r"Track (\d+) [“\"](.*)[”\"]")
+TRACK_RE = re.compile(r"(?:Track|轨道) (\d+)\s*[“\"](.*)[”\"]")
 TRACK_TOGGLES = {"mute": "Mute", "solo": "Solo", "arm": "Record Enable", "monitor": "Input Monitoring"}
 BAR_TOGGLES = {"play": "Play", "record": "Record", "cycle": "Cycle", "count_in": "Count In", "solo": "Solo",
                "autopunch": "Autopunch", "replace": "Replace", "tuner": "Tuner", "library": "Library",
@@ -27,10 +27,22 @@ BAR_TOGGLES = {"play": "Play", "record": "Record", "cycle": "Cycle", "count_in":
 
 
 # ---------------------------------------------------------------- windows
+def is_main_window(win) -> bool:
+    return str(ax.title(win) or "").endswith(("- Tracks", "- 轨道"))
+
+
+def find_label(root, label: str, *, attr=ax.desc, role: str | None = None, depth: int = 3):
+    if root is None:
+        return None
+    hits = ax.find_all(root, lambda el: (role is None or ax.role(el) == role)
+                       and labels.matches(attr(el), label), max_depth=depth, limit=1)
+    return hits[0] if hits else None
+
+
 def main_window(root):
     wins = ax.windows(root)
     for w in wins:
-        if str(ax.title(w) or "").endswith("- Tracks"):
+        if is_main_window(w):
             return w
     for w in wins:
         if ax.attr(w, ax.A_SUBROLE) == "AXStandardWindow":
@@ -65,12 +77,21 @@ def raise_app(root, win=None, pid: int | None = None, timeout: float = 4.0) -> b
             app.activateWithOptions_((1 << 1) | (1 << 0))
     if not pid:
         return False
-    end = time.time() + timeout
-    while time.time() < end:
+    end = time.monotonic() + timeout
+    if front_pid() == pid:
+        return True
+    time.sleep(0.15)
+    # A short-lived MCP call has no AppKit event loop to refresh NSWorkspace's activation cache.
+    # System Events independently verifies the same process ID before we send any desktop input.
+    from . import applescript
+    remaining = end - time.monotonic()
+    if remaining > 0 and applescript.frontmost_pid(timeout=min(1.5, remaining)) == pid:
+        return True
+    while time.monotonic() < end:
         if front_pid() == pid:
             return True
         time.sleep(0.1)
-    return front_pid() == pid
+    return False
 
 
 def owns_point(pid: int, x: float, y: float) -> bool:
@@ -97,27 +118,28 @@ def close_window(root, title: str) -> bool:
 
 # ---------------------------------------------------------------- control bar
 def control_bar(win):
-    return ax.find(win, role_="AXGroup", desc_="Control Bar", max_depth=2)
+    return find_label(win, "Control Bar", role="AXGroup", depth=2)
 
 
 def bar_control(win, key: str):
     name = BAR_TOGGLES.get(key, key)
     cb = control_bar(win)
-    return ax.find(cb, title_=name, max_depth=3) if cb else None
+    return find_label(cb, name, attr=ax.title)
 
 
 def tempo_slider(win):
     cb = control_bar(win)
-    return ax.find(cb, role_="AXSlider", desc_="Tempo", max_depth=4) if cb else None
+    return find_label(cb, "Tempo", role="AXSlider", depth=4)
 
 
 def playhead_sliders(win) -> dict:
     """bar/beat/division/tick sliders of the first 'Playhead Position' group."""
     cb = control_bar(win)
-    grp = ax.find(cb, role_="AXGroup", desc_="Playhead Position", max_depth=3) if cb else None
+    grp = find_label(cb, "Playhead Position", role="AXGroup")
     if grp is None:
         return {}
-    return {str(ax.desc(s)): s for s in ax.children(grp) if ax.role(s) == "AXSlider"}
+    return {labels.canonical(str(ax.desc(s)), ("bar", "beat")): s
+            for s in ax.children(grp) if ax.role(s) == "AXSlider"}
 
 
 def transport_snapshot(win) -> dict:
@@ -131,14 +153,14 @@ def transport_snapshot(win) -> dict:
     out["position"] = {k: _num(ax.value(v)) for k, v in ph.items()} if ph else None
     cb = control_bar(win)
     for d in ("Time Signature", "Key Signature"):
-        el = ax.find(cb, role_="AXPopUpButton", desc_=d, max_depth=4) if cb else None
+        el = find_label(cb, d, role="AXPopUpButton", depth=4)
         out[d.lower().replace(" ", "_")] = str(ax.value(el)) if el is not None else None
     return out
 
 
 # ---------------------------------------------------------------- tracks
 def tracks_header(win):
-    return ax.find(win, role_="AXGroup", desc_="Tracks header", max_depth=8)
+    return find_label(win, "Tracks header", role="AXGroup", depth=8)
 
 
 def track_items(win) -> list:
@@ -153,7 +175,7 @@ def tracks_area(win):
     is the channel-strip 'Mixer' area, and list_regions then reported inspector labels ('Read, automation
     enabled', the patch name) as regions while missing every real one.
     """
-    return ax.find(win, role_="AXGroup", desc_="Tracks contents", max_depth=8)
+    return find_label(win, "Tracks contents", role="AXGroup", depth=8)
 
 
 def region_items(area) -> list:
@@ -220,12 +242,12 @@ def _pan_slider(item):
 def track_info(item) -> dict:
     m = TRACK_RE.match(str(ax.desc(item) or ""))
     d: dict = {"index": int(m.group(1)) if m else None, "name": m.group(2) if m else str(ax.desc(item))}
-    for key, label in TRACK_TOGGLES.items():
-        el = ax.find(item, role_="AXCheckBox", desc_=label, max_depth=1)
+    for key in TRACK_TOGGLES:
+        el = track_toggle_el(item, key)
         d[key] = _truthy(ax.value(el)) if el is not None else None
-    foc = ax.find(item, role_="AXRadioButton", desc_="Has Focus", max_depth=1)
+    foc = find_label(item, "Has Focus", role="AXRadioButton", depth=1)
     d["selected"] = _truthy(ax.value(foc)) if foc is not None else None
-    vol = ax.find(item, role_="AXSlider", desc_="Volume", max_depth=1)
+    vol = volume_slider(item)
     d["volume"] = _num(ax.value(vol)) if vol is not None else None
     d["volume_text"] = str(ax.attr(vol, "AXValueDescription") or "") if vol is not None else None
     pan = _pan_slider(item)
@@ -448,11 +470,15 @@ def selection_count(root) -> int | None:
 
 
 def track_toggle_el(item, key: str):
-    return ax.find(item, role_="AXCheckBox", desc_=TRACK_TOGGLES[key], max_depth=1)
+    return find_label(item, TRACK_TOGGLES[key], role="AXCheckBox", depth=1)
+
+
+def volume_slider(item):
+    return find_label(item, "Volume", role="AXSlider", depth=1)
 
 
 def select_track(item) -> bool:
-    foc = ax.find(item, role_="AXRadioButton", desc_="Has Focus", max_depth=1)
+    foc = find_label(item, "Has Focus", role="AXRadioButton", depth=1)
     return foc is not None and ax.press(foc)
 
 
@@ -497,7 +523,7 @@ def find_menu_item(root, *path):
         hit = None
         for it in items:
             t = str(ax.title(it) or "")
-            if (p.startswith("~") and re.search(p[1:], t)) or t == p:
+            if (p.startswith("~") and re.search(p[1:], t)) or labels.matches(t, p):
                 hit = it
                 break
         if hit is None:
@@ -534,7 +560,7 @@ def press_menu_item(root, *path) -> bool:
     titles, els = open_menu(root, path[0])
     node, want = None, path[1]
     for t, cand in zip(titles, els):
-        if (want.startswith("~") and re.search(want[1:], t)) or t == want:
+        if (want.startswith("~") and re.search(want[1:], t)) or labels.matches(t, want):
             node = cand
             break
     if node is None:
@@ -544,7 +570,7 @@ def press_menu_item(root, *path) -> bool:
         nxt = None
         for k in _submenu(node):
             t = str(ax.title(k) or "")
-            if (p.startswith("~") and re.search(p[1:], t)) or t == p:
+            if (p.startswith("~") and re.search(p[1:], t)) or labels.matches(t, p):
                 nxt = k
                 break
         if nxt is None:
@@ -676,7 +702,7 @@ def parse_db(text: str | None) -> float | None:
 
 
 def track_db(item) -> float | None:
-    vol = ax.find(item, role_="AXSlider", desc_="Volume", max_depth=1)
+    vol = volume_slider(item)
     return parse_db(ax.attr(vol, "AXValueDescription")) if vol is not None else None
 
 

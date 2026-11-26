@@ -7,7 +7,7 @@ import time
 
 from . import target
 from .channels import applescript, ax
-from .channels.midi import LOGIC_IN_NAME, MCU_PORT, bus
+from .channels.midi import LOGIC_IN_NAME, LOGIC_IN_NAMES, MCU_PORT, bus
 
 
 def session_state() -> dict:
@@ -52,7 +52,7 @@ def run(probe_mcu: bool = True) -> dict:
 
     # CoreMIDI
     ports = bus().list_ports()
-    has_in = any(LOGIC_IN_NAME in p for p in ports["outputs"])
+    has_in = any(label in p for p in ports["outputs"] for label in LOGIC_IN_NAMES)
     checks.append({"name": "midi_logic_virtual_in", "status": "ok" if has_in else "warn", "summary": f"{LOGIC_IN_NAME} {'present' if has_in else 'missing (is Logic running?)'}"})
 
     # MCU surface readback
